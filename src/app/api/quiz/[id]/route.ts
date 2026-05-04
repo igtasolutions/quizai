@@ -20,7 +20,11 @@ async function getSupabase() {
   )
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
   const supabase = await getSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -30,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data, error } = await supabase
     .from('quizzes')
     .update(updates)
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
     .select()
     .single()
@@ -39,7 +43,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ quiz: data })
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
   const supabase = await getSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -47,7 +55,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   await supabase
     .from('quizzes')
     .update({ status: 'archived' })
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
 
   return NextResponse.json({ ok: true })
