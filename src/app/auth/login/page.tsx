@@ -35,47 +35,132 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#05090f] px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-3xl font-bold mb-2">
-            Quiz<span className="text-blue-400">AI</span>
+    <div style={{
+      minHeight: '100vh',
+      background: '#05090f',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      fontFamily: 'DM Sans, sans-serif',
+    }}>
+      {/* Glow de fundo */}
+      <div style={{
+        position: 'fixed', top: '20%', left: '50%', transform: 'translateX(-50%)',
+        width: '600px', height: '400px',
+        background: 'radial-gradient(ellipse, rgba(37,99,255,0.12) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }}/>
+
+      <div style={{ width: '100%', maxWidth: '400px', position: 'relative' }}>
+        {/* LOGO */}
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{
+            fontSize: '32px', fontWeight: '800', letterSpacing: '-1px',
+            fontFamily: 'Syne, sans-serif', color: '#eef2ff',
+          }}>
+            Quiz<span style={{ color: '#60a5fa' }}>AI</span>
           </div>
-          <p className="text-sm text-[#4e6a90]">
+          <div style={{ fontSize: '13px', color: '#4e6a90', marginTop: '6px' }}>
             {isLogin ? 'Entre na sua conta' : 'Crie sua conta grátis'}
-          </p>
-        </div>
-        <div className="bg-[#0a1120] border border-[#162035] rounded-2xl p-6">
-          <div className="flex flex-col gap-3 mb-4">
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              className="w-full bg-black/40 border border-[#162035] rounded-lg px-3 py-3 text-sm focus:border-blue-500/60 focus:outline-none text-[#eef2ff]"
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Senha"
-              className="w-full bg-black/40 border border-[#162035] rounded-lg px-3 py-3 text-sm focus:border-blue-500/60 focus:outline-none text-[#eef2ff]"
-            />
           </div>
-          {msg && <p className="text-xs text-blue-400 mb-3">{msg}</p>}
+        </div>
+
+        {/* CARD */}
+        <div style={{
+          background: '#0a1120',
+          border: '1px solid #162035',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 0 40px rgba(37,99,255,0.06)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          {/* Glow no card */}
+          <div style={{
+            position: 'absolute', top: '-40px', right: '-40px',
+            width: '180px', height: '180px',
+            background: 'radial-gradient(circle, rgba(37,99,255,0.1) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}/>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>E-mail</div>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handle()}
+                placeholder="seu@email.com"
+                style={{
+                  width: '100%', background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid #162035', borderRadius: '10px',
+                  color: '#eef2ff', fontSize: '14px', padding: '12px 14px',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Senha</div>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handle()}
+                placeholder="••••••••"
+                style={{
+                  width: '100%', background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid #162035', borderRadius: '10px',
+                  color: '#eef2ff', fontSize: '14px', padding: '12px 14px',
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+
+          {msg && (
+            <div style={{
+              background: 'rgba(37,99,255,0.08)', border: '1px solid rgba(37,99,255,0.2)',
+              borderRadius: '8px', padding: '10px 14px',
+              fontSize: '12px', color: '#60a5fa', marginBottom: '16px',
+            }}>
+              {msg}
+            </div>
+          )}
+
           <button
             onClick={handle}
             disabled={loading}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-xl text-sm shadow-[0_0_20px_rgba(37,99,255,0.3)] disabled:opacity-50"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, #2563ff, #1d4ed8)',
+              color: '#fff', fontFamily: 'Syne, sans-serif',
+              fontWeight: '800', fontSize: '14px',
+              padding: '14px', borderRadius: '10px', border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+              boxShadow: '0 0 24px rgba(37,99,255,0.35)',
+              letterSpacing: '-0.2px',
+            }}
           >
             {loading ? 'Aguarde...' : isLogin ? 'Entrar →' : 'Criar conta →'}
           </button>
+
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="w-full text-center text-xs text-[#4e6a90] mt-4 hover:text-[#eef2ff] transition-colors"
+            style={{
+              width: '100%', background: 'transparent', border: 'none',
+              color: '#4e6a90', fontSize: '12px', marginTop: '16px',
+              cursor: 'pointer', textAlign: 'center',
+            }}
           >
             {isLogin ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entre'}
           </button>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '11px', color: '#4e6a90' }}>
+          Crie quiz de vendas em 60 segundos com IA
         </div>
       </div>
     </div>

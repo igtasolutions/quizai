@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -23,77 +24,153 @@ export default async function DashboardPage() {
   if (!user) redirect('/auth/login')
 
   const { data: quizzes } = await supabase
-    .from('quizzes')
-    .select('*')
-    .eq('user_id', user.id)
-    .neq('status', 'archived')
-    .order('created_at', { ascending: false })
+    .from('quizzes').select('*').eq('user_id', user.id)
+    .neq('status', 'archived').order('created_at', { ascending: false })
 
   const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+    .from('users').select('*').eq('id', user.id).single()
 
   const totalLeads = quizzes?.reduce((a, q) => a + (q.total_leads || 0), 0) ?? 0
   const totalViews = quizzes?.reduce((a, q) => a + (q.total_views || 0), 0) ?? 0
+  const totalAtivos = quizzes?.filter(q => q.status === 'active').length ?? 0
+
+  const stats = [
+    { label: 'Visualizações', value: totalViews.toLocaleString('pt-BR'), color: '#60a5fa', glow: 'rgba(96,165,250,0.15)' },
+    { label: 'Leads capturados', value: totalLeads.toLocaleString('pt-BR'), color: '#22c55e', glow: 'rgba(34,197,94,0.15)' },
+    { label: 'Quizzes ativos', value: totalAtivos, color: '#a78bfa', glow: 'rgba(167,139,250,0.15)' },
+  ]
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-1">
+    <div style={{ padding: '32px', maxWidth: '900px', margin: '0 auto', fontFamily: 'DM Sans, sans-serif' }}>
+
+      {/* HEADER */}
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{
+          fontSize: '26px', fontWeight: '800', margin: '0 0 4px',
+          fontFamily: 'Syne, sans-serif', color: '#eef2ff', letterSpacing: '-0.5px',
+        }}>
           Olá, {profile?.name?.split(' ')[0] ?? 'produtor'} 👋
         </h1>
-        <p className="text-sm text-[#4e6a90]">
+        <p style={{ fontSize: '13px', color: '#4e6a90', margin: 0 }}>
           Plano {profile?.plan ?? 'starter'} · {profile?.quiz_limit ?? 1} quiz ativo
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        {[
-          { label: 'Visualizações', value: totalViews.toLocaleString('pt-BR'), color: 'text-blue-400' },
-          { label: 'Leads capturados', value: totalLeads.toLocaleString('pt-BR'), color: 'text-green-400' },
-          { label: 'Quizzes ativos', value: quizzes?.filter(q => q.status === 'active').length ?? 0, color: 'text-purple-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-[#0a1120] border border-[#162035] rounded-xl p-4">
-            <div className="text-[10px] uppercase tracking-wider text-[#4e6a90] mb-2">{s.label}</div>
-            <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
+      {/* STATS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '32px' }}>
+        {stats.map(s => (
+          <div key={s.label} style={{
+            background: '#0a1120', border: '1px solid #162035',
+            borderRadius: '14px', padding: '20px',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', top: '-30px', right: '-30px',
+              width: '120px', height: '120px',
+              background: `radial-gradient(circle, ${s.glow} 0%, transparent 70%)`,
+              pointerEvents: 'none',
+            }}/>
+            <div style={{ fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+              {s.label}
+            </div>
+            <div style={{
+              fontSize: '32px', fontWeight: '800', color: s.color,
+              fontFamily: 'Syne, sans-serif', lineHeight: 1,
+            }}>
+              {s.value}
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-lg">Meus Quizzes</h2>
-        <a href="/dashboard/quizzes/new" className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+      {/* HEADER QUIZZES */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: 0 }}>
+          Meus Quizzes
+        </h2>
+        <Link href="/dashboard/quizzes/new" style={{
+          background: 'linear-gradient(135deg, #2563ff, #1d4ed8)',
+          color: '#fff', fontFamily: 'Syne, sans-serif',
+          fontWeight: '700', fontSize: '12px',
+          padding: '8px 16px', borderRadius: '8px',
+          textDecoration: 'none',
+          boxShadow: '0 0 16px rgba(37,99,255,0.3)',
+        }}>
           + Novo Quiz
-        </a>
+        </Link>
       </div>
 
+      {/* EMPTY STATE */}
       {(!quizzes || quizzes.length === 0) && (
-        <div className="bg-[#0a1120] border border-dashed border-[#162035] rounded-xl p-12 text-center">
-          <div className="text-4xl mb-3">⚡</div>
-          <div className="font-bold mb-2">Crie seu primeiro quiz</div>
-          <p className="text-sm text-[#4e6a90] mb-4">Descreva seu produto e a IA monta tudo em 60 segundos</p>
-          <a href="/dashboard/quizzes/new" className="bg-blue-600 text-white text-sm font-bold px-6 py-3 rounded-xl inline-block hover:bg-blue-700 transition-colors">
+        <div style={{
+          background: '#0a1120',
+          border: '1px dashed #162035',
+          borderRadius: '16px', padding: '60px 20px',
+          textAlign: 'center', position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '300px', height: '200px',
+            background: 'radial-gradient(ellipse, rgba(37,99,255,0.08) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}/>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚡</div>
+          <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '8px' }}>
+            Crie seu primeiro quiz
+          </div>
+          <p style={{ fontSize: '13px', color: '#4e6a90', marginBottom: '24px' }}>
+            Descreva seu produto e a IA monta tudo em 60 segundos
+          </p>
+          <Link href="/dashboard/quizzes/new" style={{
+            background: 'linear-gradient(135deg, #2563ff, #1d4ed8)',
+            color: '#fff', fontFamily: 'Syne, sans-serif',
+            fontWeight: '700', fontSize: '13px',
+            padding: '12px 24px', borderRadius: '10px',
+            textDecoration: 'none',
+            boxShadow: '0 0 20px rgba(37,99,255,0.3)',
+          }}>
             Criar agora →
-          </a>
+          </Link>
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      {/* LISTA DE QUIZZES */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {quizzes?.map(q => (
-          <div key={q.id} className="bg-[#0a1120] border border-[#162035] rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-2 h-2 rounded-full ${q.status === 'active' ? 'bg-green-400' : 'bg-[#4e6a90]'}`} />
+          <div key={q.id} style={{
+            background: '#0a1120', border: '1px solid #162035',
+            borderRadius: '12px', padding: '16px 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                background: q.status === 'active' ? '#22c55e' : '#4e6a90',
+                boxShadow: q.status === 'active' ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
+              }}/>
               <div>
-                <div className="font-medium text-sm">{q.title}</div>
-                <div className="text-[11px] text-blue-400 font-mono">quizai.app/q/{q.slug}</div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#eef2ff', marginBottom: '3px' }}>
+                  {q.title}
+                </div>
+                <div style={{ fontSize: '11px', color: '#60a5fa', fontFamily: 'monospace' }}>
+                  quizai.app/q/{q.slug}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-[11px] text-[#4e6a90]">
-              <span>{q.total_views} views</span>
-              <span className="text-green-400">{q.total_leads} leads</span>
-              <a href={`/dashboard/quizzes/${q.id}`} className="text-blue-400 font-medium">Editar →</a>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '11px', color: '#4e6a90' }}>{q.total_views} views</div>
+                <div style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>{q.total_leads} leads</div>
+              </div>
+              <Link href={`/dashboard/quizzes/${q.id}`} style={{
+                background: 'rgba(37,99,255,0.1)', border: '1px solid rgba(37,99,255,0.2)',
+                color: '#60a5fa', fontSize: '11px', fontWeight: '600',
+                padding: '6px 14px', borderRadius: '6px', textDecoration: 'none',
+              }}>
+                Editar →
+              </Link>
             </div>
           </div>
         ))}

@@ -34,36 +34,76 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .from('users').select('name, plan').eq('id', user.id).single()
 
   return (
-    <div className="flex min-h-screen bg-[#05090f]">
-      <aside className="w-48 bg-[#0a1120] border-r border-[#162035] flex flex-col flex-shrink-0">
-        <div className="p-4 border-b border-[#162035]">
-          <div className="font-bold text-lg">
-            Quiz<span className="text-blue-400">AI</span>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#05090f', fontFamily: 'DM Sans, sans-serif' }}>
+      {/* SIDEBAR */}
+      <aside style={{
+        width: '200px', background: '#0a1120',
+        borderRight: '1px solid #162035',
+        display: 'flex', flexDirection: 'column', flexShrink: 0,
+        position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 50,
+      }}>
+        {/* LOGO */}
+        <div style={{ padding: '20px 16px', borderBottom: '1px solid #162035' }}>
+          <div style={{
+            fontSize: '20px', fontWeight: '800', letterSpacing: '-1px',
+            fontFamily: 'Syne, sans-serif', color: '#eef2ff',
+          }}>
+            Quiz<span style={{ color: '#60a5fa' }}>AI</span>
           </div>
-          <div className="text-[10px] text-[#4e6a90] mt-0.5">Plano {profile?.plan ?? 'starter'}</div>
+          <div style={{ fontSize: '10px', color: '#4e6a90', marginTop: '3px', textTransform: 'capitalize' }}>
+            Plano {profile?.plan ?? 'starter'}
+          </div>
         </div>
-        <nav className="flex-1 p-2">
+
+        {/* NAV */}
+        <nav style={{ flex: 1, padding: '12px 8px' }}>
           {nav.map(item => (
-            <Link key={item.href} href={item.href}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium text-[#4e6a90] hover:text-[#eef2ff] hover:bg-[#0d1829] transition-all mb-0.5">
-              <span className="text-sm">{item.icon}</span>
+            <Link key={item.href} href={item.href} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '9px 12px', borderRadius: '8px',
+              fontSize: '12px', fontWeight: '500', color: '#4e6a90',
+              textDecoration: 'none', marginBottom: '2px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = '#0d1829'
+              ;(e.currentTarget as HTMLElement).style.color = '#eef2ff'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent'
+              ;(e.currentTarget as HTMLElement).style.color = '#4e6a90'
+            }}>
+              <span style={{ fontSize: '14px' }}>{item.icon}</span>
               {item.label}
             </Link>
           ))}
         </nav>
-        <div className="p-3 border-t border-[#162035]">
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-xs font-bold">
+
+        {/* USER */}
+        <div style={{ padding: '12px 8px', borderTop: '1px solid #162035' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px' }}>
+            <div style={{
+              width: '30px', height: '30px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #2563ff, #7c3aed)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '12px', fontWeight: '800', color: '#fff', flexShrink: 0,
+            }}>
               {profile?.name?.[0]?.toUpperCase() ?? 'U'}
             </div>
             <div>
-              <div className="text-[11px] font-medium">{profile?.name?.split(' ')[0]}</div>
-              <div className="text-[10px] text-[#4e6a90]">R$29/mês</div>
+              <div style={{ fontSize: '12px', fontWeight: '500', color: '#eef2ff' }}>
+                {profile?.name?.split(' ')[0] ?? 'Usuário'}
+              </div>
+              <div style={{ fontSize: '10px', color: '#4e6a90' }}>R$29/mês</div>
             </div>
           </div>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto">{children}</main>
+
+      {/* MAIN */}
+      <main style={{ flex: 1, marginLeft: '200px', minHeight: '100vh', color: '#eef2ff' }}>
+        {children}
+      </main>
     </div>
   )
 }
