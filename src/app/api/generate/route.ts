@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
 
     const ativos = config.blocos_ativos.join(', ')
     const nEtapas: Record<string, string> = {
-      auto: 'ideal para o produto (entre 8 e 15)',
-      short: '5 a 8',
-      mid: '10 a 13',
-      full: '15 a 21',
+      auto: 'entre 8 e 12 blocos',
+      short: '5 a 7',
+      mid: '8 a 10',
+      full: '11 a 14',
     }
 
     const prompt = `Você é expert em quiz de vendas de alta conversão para o mercado brasileiro de infoprodutos.
@@ -50,7 +50,7 @@ Crie um quiz de vendas completo para:
 ${product.url_referencia ? `- Referência: ${product.url_referencia}` : ''}
 
 Blocos a incluir: ${ativos}
-Quantidade de etapas: ${nEtapas[config.etapas] ?? 'ideal'}
+Quantidade de etapas: ${nEtapas[config.etapas] ?? 'ideal'} (máximo absoluto de 14 blocos)
 
 REGRAS DO COPY:
 - Português brasileiro coloquial, direto e emocional
