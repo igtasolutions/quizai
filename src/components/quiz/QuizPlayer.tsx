@@ -69,51 +69,7 @@ function getVimeoId(url: string) {
   return match ? match[1] : null
 }
 
-function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme; onUnlock: () => void }) {
-  const lockSeconds = block.videoLockSeconds ?? 0
-  const [unlocked, setUnlocked] = useState(lockSeconds === 0)
-  const [secondsWatched, setSecondsWatched] = useState(0)
-  const intervalRef = useRef<any>(null)
-
-  useEffect(() => {
-    if (unlocked || lockSeconds === 0) return
-
-    const start = () => {
-      if (intervalRef.current) return
-      intervalRef.current = setInterval(() => {
-        setSecondsWatched(s => {
-          const next = s + 1
-          if (next >= lockSeconds) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-            setUnlocked(true)
-            if (block.videoLockAction === 'auto_next') onUnlock()
-            return next
-          }
-          return next
-        })
-      }, 1000)
-    }
-
-    const stop = () => {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-
-    // Para quando perde foco, continua quando volta
-    window.addEventListener('blur', stop)
-    window.addEventListener('focus', start)
-
-    // Começa imediatamente
-    start()
-
-    return () => {
-      stop()
-      window.removeEventListener('blur', stop)
-      window.removeEventListener('focus', start)
-    }
-  }, [unlocked])
-
+function VideoBlock({ block, theme }: { block: QuizBlock; theme: Theme }) {
   const renderPlayer = () => {
     if (block.videoProvider === 'vturb' && block.videoEmbed) {
       return <div dangerouslySetInnerHTML={{ __html: block.videoEmbed }} style={{ width: '100%' }}/>
@@ -130,7 +86,6 @@ function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme
             allowFullScreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           />
-          {/* Bloqueia clique no título e logo */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50px', zIndex: 10 }}/>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '80px', height: '50px', zIndex: 10 }}/>
         </div>
@@ -156,7 +111,7 @@ function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme
     }
 
     return (
-      <div style={{ background: `${theme.surface}`, border: `1px dashed ${theme.border}`, borderRadius: '10px', padding: '40px', textAlign: 'center', color: theme.muted, fontSize: '13px' }}>
+      <div style={{ background: theme.surface, border: `1px dashed ${theme.border}`, borderRadius: '10px', padding: '40px', textAlign: 'center', color: theme.muted, fontSize: '13px' }}>
         Configure o vídeo no editor →
       </div>
     )
@@ -212,46 +167,47 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     setVideoUnlocked(false)
   }, [currentStep])
 
-  // Timer do vídeo — conta só quando a janela está em foco
-useEffect(() => {
-  if (!videoLocked) return
-  let count = 0
-  let interval: any = null
-
-  const start = () => {
-    if (interval) return
-    interval = setInterval(() => {
-      count++
-      if (count >= videoLockSeconds) {
-        clearInterval(interval)
-        setVideoUnlocked(true)
-        if (currentBlock?.videoLockAction === 'auto_next') goNext()
-      }
-    }, 1000)
-  }
-
-  const stop = () => {
-    clearInterval(interval)
-    interval = null
-  }
-
-  window.addEventListener('blur', stop)
-  window.addEventListener('focus', start)
-  start()
-
-  return () => {
-    stop()
-    window.removeEventListener('blur', stop)
-    window.removeEventListener('focus', start)
-  }
-}, [videoLocked, videoLockSeconds, currentStep])
-
   const goNext = useCallback(() => {
     if (currentStep < totalSteps - 1) {
       setAnimating(true)
       setTimeout(() => { setCurrentStep(s => s + 1); setAnimating(false) }, 200)
     }
   }, [currentStep, totalSteps])
+
+  // Timer do vídeo — conta apenas com janela em foco
+  useEffect(() => {
+    if (!videoLocked) return
+    let count = 0
+    let interval: any = null
+
+    const start = () => {
+      if (interval) return
+      interval = setInterval(() => {
+        count++
+        if (count >= videoLockSeconds) {
+          clearInterval(interval)
+          interval = null
+          setVideoUnlocked(true)
+          if (currentBlock?.videoLockAction === 'auto_next') goNext()
+        }
+      }, 1000)
+    }
+
+    const stop = () => {
+      clearInterval(interval)
+      interval = null
+    }
+
+    window.addEventListener('blur', stop)
+    window.addEventListener('focus', start)
+    start()
+
+    return () => {
+      stop()
+      window.removeEventListener('blur', stop)
+      window.removeEventListener('focus', start)
+    }
+  }, [videoLocked, videoLockSeconds, currentStep])
 
   const selectOption = async (option: string, index: number) => {
     setSelectedOption(option)
@@ -330,10 +286,10 @@ useEffect(() => {
           animation: shimmer 2.5s linear infinite;
           font-weight: inherit;
         }
+        .glow-card { position: relative; overflow: hidden; }
         .glow-card::before {
           content: '';
-          position: absolute;
-          top: -50px; right: -50px;
+          position: absolute; top: -50px; right: -50px;
           width: 180px; height: 180px;
           background: radial-gradient(circle, ${theme.accent}18 0%, transparent 70%);
           pointer-events: none;
@@ -341,8 +297,7 @@ useEffect(() => {
         }
         .glow-card::after {
           content: '';
-          position: absolute;
-          bottom: -30px; left: -30px;
+          position: absolute; bottom: -30px; left: -30px;
           width: 120px; height: 120px;
           background: radial-gradient(circle, ${theme.accent2}10 0%, transparent 70%);
           pointer-events: none;
@@ -362,7 +317,7 @@ useEffect(() => {
             Quiz<span style={{ color: theme.accent2 }}>AI</span>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ height: '3px', background: `${theme.border}`, borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '3px', background: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{ height: '100%', background: `linear-gradient(90deg, ${theme.accent}, ${theme.accent2})`, borderRadius: '2px', width: `${progress}%`, transition: 'width 0.5s ease' }}/>
             </div>
             <div style={{ fontSize: '10px', color: theme.muted, marginTop: '3px', textAlign: 'right' }}>
@@ -387,7 +342,7 @@ useEffect(() => {
         </div>
 
         {/* CARD COM GLOW */}
-        <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden', boxShadow: `0 0 40px ${theme.accent}08` }}>
+        <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, boxShadow: `0 0 40px ${theme.accent}08` }}>
           {renderTitle(currentBlock.title, currentBlock.titleColor, currentBlock.fontFamily, currentBlock.fontSize)}
           {currentBlock.subtitle && (
             <p style={{ fontSize: '14px', color: theme.muted, lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
@@ -404,14 +359,14 @@ useEffect(() => {
         {/* VÍDEO */}
         {(currentBlock.type === 'video' || currentBlock.videoUrl || currentBlock.videoEmbed) && (
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <VideoBlock block={currentBlock} theme={theme} onUnlock={() => { setVideoUnlocked(true); if (currentBlock.videoLockAction === 'auto_next') goNext() }}/>
+            <VideoBlock block={currentBlock} theme={theme} />
           </div>
         )}
 
         {/* PROVA SOCIAL */}
         {currentBlock.testimonialName && (
           <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: `radial-gradient(circle, #22c55e15 0%, transparent 70%)`, pointerEvents: 'none' }}/>
+            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, #22c55e15 0%, transparent 70%)', pointerEvents: 'none' }}/>
             {currentBlock.testimonialText && (
               <p style={{ fontSize: '14px', color: theme.text, lineHeight: '1.6', marginBottom: '14px', fontStyle: 'italic' }}>
                 "{currentBlock.testimonialText}"
@@ -494,7 +449,7 @@ useEffect(() => {
           </button>
         )}
 
-        {/* CTA PADRÃO */}
+        {/* CTA PADRÃO — esconde se vídeo bloqueado */}
         {!['question','capture','offer'].includes(currentBlock.type) && !videoLocked && (
           <button onClick={goNext} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1 }}>
             Continuar →
