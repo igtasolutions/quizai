@@ -24,115 +24,179 @@ export default async function LeadsPage() {
 
   const { data: quizzes } = await supabase
     .from('quizzes')
-    .select('id, title, slug')
+    .select('id, title, slug, total_views, total_leads, total_clicks, blocks')
     .eq('user_id', user.id)
     .neq('status', 'archived')
 
-  const quizIds = quizzes?.map(q => q.id) ?? []
-
-  const { data: leads } = await supabase
+  const { data: allLeads } = await supabase
     .from('leads')
-    .select('*')
-    .in('quiz_id', quizIds.length > 0 ? quizIds : ['none'])
-    .order('created_at', { ascending: false })
-    .limit(100)
+    .select('quiz_id, step_reached, total_steps, completed, converted, created_at')
+    .in('quiz_id', quizzes?.map(q => q.id) ?? ['none'])
 
-  const getQuizTitle = (id: string) => quizzes?.find(q => q.id === id)?.title ?? '—'
+  const totalLeads = allLeads?.length ?? 0
+  const totalCompleted = allLeads?.filter(l => l.completed).length ?? 0
+  const totalConverted = allLeads?.filter(l => l.converted).length ?? 0
+
+  // Funil por quiz
+  const quizFunnels = quizzes?.map(quiz => {
+    const leads = allLeads?.filter(l => l.quiz_id === quiz.id) ?? []
+    const blocks = (quiz.blocks as any[]) ?? []
+    const totalSteps = blocks.length || 1
+
+    // Conta quantos leads chegaram em cada etapa
+    const stepCounts = blocks.map((_: any, stepIdx: number) => ({
+      step: stepIdx + 1,
+      label: blocks[stepIdx]?.label ?? `Etapa ${stepIdx + 1}`,
+      title: blocks[stepIdx]?.title?.replace(/\*([^*]+)\*/g, '$1').substring(0, 40) ?? '',
+      type: blocks[stepIdx]?.type ?? 'question',
+      count: leads.filter(l => l.step_reached > stepIdx).length,
+    }))
+
+    return {
+      id: quiz.id,
+      title: quiz.title,
+      slug: quiz.slug,
+      totalLeads: leads.length,
+      completed: leads.filter(l => l.completed).length,
+      converted: leads.filter(l => l.converted).length,
+      views: quiz.total_views,
+      steps: stepCounts,
+      maxCount: leads.length || 1,
+    }
+  }) ?? []
+
+  const typeColor: Record<string, string> = {
+    headline: '#a78bfa', question: '#60a5fa', insight: '#fde047',
+    capture: '#f9a8d4', offer: '#fdba74', bridge: '#5eead4',
+    social_proof: '#86efac', manual: '#fbbf24', video: '#fca5a5',
+  }
 
   return (
-    <div style={{ padding: '32px', fontFamily: 'DM Sans, sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', fontFamily: 'DM Sans, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* HEADER */}
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
-          Leads
+          Analytics de Leads
         </h1>
         <p style={{ fontSize: '13px', color: '#4e6a90', margin: 0 }}>
-          {leads?.length ?? 0} leads capturados no total
+          Funil por etapa — veja onde os leads estão saindo
         </p>
       </div>
 
-      {/* STATS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '28px' }}>
+      {/* STATS GERAIS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
         {[
-          { label: 'Total de leads', value: leads?.length ?? 0, color: '#60a5fa' },
-          { label: 'Completaram o quiz', value: leads?.filter(l => l.completed).length ?? 0, color: '#22c55e' },
-          { label: 'Convertidos', value: leads?.filter(l => l.converted).length ?? 0, color: '#a78bfa' },
+          { label: 'Total de leads', value: totalLeads, color: '#60a5fa' },
+          { label: 'Completaram', value: totalCompleted, color: '#22c55e' },
+          { label: 'Convertidos', value: totalConverted, color: '#a78bfa' },
+          { label: 'Taxa conclusão', value: totalLeads > 0 ? `${Math.round((totalCompleted / totalLeads) * 100)}%` : '0%', color: '#fbbf24' },
         ].map(s => (
           <div key={s.label} style={{ background: '#0a1120', border: '1px solid #162035', borderRadius: '12px', padding: '16px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: `radial-gradient(circle, ${s.color}18 0%, transparent 70%)`, pointerEvents: 'none' }}/>
+            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: `radial-gradient(circle, ${s.color}15 0%, transparent 70%)`, pointerEvents: 'none' }}/>
             <div style={{ fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>{s.label}</div>
-            <div style={{ fontSize: '28px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: s.color }}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      {/* TABELA */}
-      {(!leads || leads.length === 0) ? (
+      {/* FUNIL POR QUIZ */}
+      {quizFunnels.length === 0 ? (
         <div style={{ background: '#0a1120', border: '1px dashed #162035', borderRadius: '14px', padding: '48px', textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: '10px' }}>◉</div>
-          <div style={{ fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '6px' }}>Nenhum lead ainda</div>
-          <p style={{ fontSize: '13px', color: '#4e6a90' }}>Quando alguém preencher seu quiz, os leads aparecem aqui.</p>
+          <div style={{ fontSize: '32px', marginBottom: '10px' }}>◈</div>
+          <div style={{ fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '6px' }}>Nenhum quiz ainda</div>
+          <p style={{ fontSize: '13px', color: '#4e6a90' }}>Crie seu primeiro quiz para ver o funil aqui.</p>
         </div>
       ) : (
-        <div style={{ background: '#0a1120', border: '1px solid #162035', borderRadius: '14px', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #162035' }}>
-                  {['Nome', 'E-mail', 'WhatsApp', 'Quiz', 'Progresso', 'Status', 'Data'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map(lead => (
-                  <tr key={lead.id} style={{ borderBottom: '1px solid rgba(22,32,53,0.5)' }}>
-                    <td style={{ padding: '12px 16px', fontSize: '13px', color: '#eef2ff', fontWeight: '500' }}>
-                      {lead.name || <span style={{ color: '#4e6a90' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px', color: '#4e6a90' }}>
-                      {lead.email || '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {lead.phone ? (
-                        <a href={`https://wa.me/55${lead.phone.replace(/\D/g,'')}`} target="_blank" style={{ fontSize: '12px', color: '#22c55e', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          💬 {lead.phone}
-                        </a>
-                      ) : <span style={{ fontSize: '12px', color: '#4e6a90' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: '11px', color: '#60a5fa', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {getQuizTitle(lead.quiz_id)}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        {Array.from({ length: lead.total_steps || 7 }, (_, i) => (
-                          <div key={i} style={{ width: '12px', height: '4px', borderRadius: '2px', background: i < lead.step_reached ? '#2563ff' : '#162035' }}/>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: '9px', color: '#4e6a90', marginTop: '2px' }}>
-                        {lead.step_reached}/{lead.total_steps || '?'}
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{
-                        fontSize: '10px', fontWeight: '600', padding: '3px 8px', borderRadius: '20px',
-                        background: lead.converted ? 'rgba(167,139,250,0.1)' : lead.completed ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)',
-                        color: lead.converted ? '#a78bfa' : lead.completed ? '#86efac' : '#fca5a5',
-                        border: `1px solid ${lead.converted ? 'rgba(167,139,250,0.2)' : lead.completed ? 'rgba(34,197,94,0.2)' : 'rgba(248,113,113,0.2)'}`,
-                      }}>
-                        {lead.converted ? 'Convertido' : lead.completed ? 'Concluído' : 'Abandonou'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: '11px', color: '#4e6a90', whiteSpace: 'nowrap' }}>
-                      {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                  </tr>
+        quizFunnels.map(quiz => (
+          <div key={quiz.id} style={{ background: '#0a1120', border: '1px solid #162035', borderRadius: '16px', padding: '24px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle, rgba(37,99,255,0.06) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+
+            {/* HEADER DO QUIZ */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '4px' }}>{quiz.title}</div>
+                <div style={{ fontSize: '11px', color: '#60a5fa', fontFamily: 'monospace' }}>quizai.app/q/{quiz.slug}</div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {[
+                  { label: 'Views', value: quiz.views, color: '#60a5fa' },
+                  { label: 'Leads', value: quiz.totalLeads, color: '#22c55e' },
+                  { label: 'Convertidos', value: quiz.converted, color: '#a78bfa' },
+                ].map(s => (
+                  <div key={s.label} style={{ textAlign: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid #162035', borderRadius: '8px', padding: '8px 12px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{s.label}</div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* FUNIL POR ETAPA */}
+            {quiz.totalLeads === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#4e6a90', fontSize: '13px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px' }}>
+                Nenhum lead ainda neste quiz
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {quiz.steps.map((step, idx) => {
+                  const pct = Math.round((step.count / quiz.maxCount) * 100)
+                  const prevCount = idx > 0 ? quiz.steps[idx - 1].count : quiz.maxCount
+                  const dropPct = prevCount > 0 ? Math.round(((prevCount - step.count) / prevCount) * 100) : 0
+                  const color = typeColor[step.type] ?? '#60a5fa'
+                  const isWorst = quiz.steps.length > 1 && step.count === Math.min(...quiz.steps.map(s => s.count))
+
+                  return (
+                    <div key={step.step}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                        {/* NÚMERO */}
+                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: `${color}20`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: '700', color, flexShrink: 0 }}>
+                          {step.step}
+                        </div>
+
+                        {/* TIPO */}
+                        <div style={{ fontSize: '8px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', background: `${color}15`, color, border: `1px solid ${color}30`, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {step.type}
+                        </div>
+
+                        {/* LABEL */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '11px', color: '#4e6a90', marginBottom: '1px', textTransform: 'uppercase', letterSpacing: '0.3px', fontSize: '9px' }}>{step.label}</div>
+                          <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.title}</div>
+                        </div>
+
+                        {/* CONTAGEM */}
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff' }}>{step.count}</div>
+                          <div style={{ fontSize: '10px', color: pct > 60 ? '#22c55e' : pct > 30 ? '#fbbf24' : '#f87171', fontWeight: '600' }}>{pct}%</div>
+                        </div>
+                      </div>
+
+                      {/* BARRA */}
+                      <div style={{ marginLeft: '32px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: '3px', transition: 'width 0.5s ease', boxShadow: pct > 80 ? `0 0 8px ${color}40` : 'none' }}/>
+                        </div>
+                        {/* DROP INDICATOR */}
+                        {idx > 0 && dropPct > 0 && (
+                          <div style={{ fontSize: '9px', color: dropPct > 30 ? '#f87171' : '#4e6a90', fontWeight: '600', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            {dropPct > 30 ? '↓' : '↓'} {dropPct}%
+                          </div>
+                        )}
+                        {/* PIOR ETAPA */}
+                        {isWorst && quiz.totalLeads > 0 && (
+                          <div style={{ fontSize: '8px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171', padding: '1px 6px', borderRadius: '4px', flexShrink: 0 }}>
+                            maior saída
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        ))
       )}
     </div>
   )
