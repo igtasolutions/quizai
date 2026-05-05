@@ -1,57 +1,28 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface Theme {
-  bg: string
-  surface: string
-  border: string
-  accent: string
-  accent2: string
-  text: string
-  muted: string
+  bg: string; surface: string; border: string
+  accent: string; accent2: string; text: string; muted: string
 }
 
 interface QuizBlock {
-  id: string
-  type: string
-  label: string
-  title: string
-  subtitle: string
-  options: string[]
-  fontFamily?: string
-  fontSize?: string
-  titleColor?: string
-  imageUrl?: string
-  imageAlt?: string
-  videoProvider?: string
-  videoUrl?: string
-  videoEmbed?: string
-  videoLockSeconds?: number
-  videoLockAction?: string
-  testimonialPhoto?: string
-  testimonialName?: string
-  testimonialRole?: string
-  testimonialText?: string
+  id: string; type: string; label: string; title: string; subtitle: string; options: string[]
+  fontFamily?: string; fontSize?: string; titleColor?: string
+  imageUrl?: string; imageAlt?: string
+  videoProvider?: string; videoUrl?: string; videoEmbed?: string
+  videoLockSeconds?: number; videoLockAction?: string
+  testimonialPhoto?: string; testimonialName?: string; testimonialRole?: string; testimonialText?: string
 }
 
 interface Quiz {
-  id: string
-  user_id: string
-  title: string
-  slug: string
-  blocks: QuizBlock[]
-  pixel_id: string | null
-  product: any
-  settings: any
-  theme?: Theme
+  id: string; user_id: string; title: string; slug: string
+  blocks: QuizBlock[]; pixel_id: string | null; product: any; settings: any; theme?: Theme
 }
 
 interface LeadAnswer {
-  step: number
-  option: string
-  text: string
-  time_spent_ms: number
+  step: number; option: string; text: string; time_spent_ms: number
 }
 
 const DEFAULT_THEME: Theme = {
@@ -69,64 +40,6 @@ function getVimeoId(url: string) {
   return match ? match[1] : null
 }
 
-function VideoBlock({ block, theme }: { block: QuizBlock; theme: Theme }) {
-  const renderPlayer = () => {
-    if (block.videoProvider === 'vturb' && block.videoEmbed) {
-      return <div dangerouslySetInnerHTML={{ __html: block.videoEmbed }} style={{ width: '100%' }}/>
-    }
-
-    if (block.videoProvider === 'youtube' && block.videoUrl) {
-      const vid = getYouTubeId(block.videoUrl)
-      if (!vid) return null
-      return (
-        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
-          <iframe
-            id={`yt-${block.id}`}
-            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }}
-            allowFullScreen
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50px', zIndex: 10 }}/>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '80px', height: '50px', zIndex: 10 }}/>
-        </div>
-      )
-    }
-
-    if (block.videoProvider === 'vimeo' && block.videoUrl) {
-      const vid = getVimeoId(block.videoUrl)
-      if (!vid) return null
-      return (
-        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
-          <iframe src={`https://player.vimeo.com/video/${vid}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
-        </div>
-      )
-    }
-
-    if (block.videoUrl) {
-      return (
-        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
-          <iframe src={block.videoUrl} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
-        </div>
-      )
-    }
-
-    return (
-      <div style={{ background: theme.surface, border: `1px dashed ${theme.border}`, borderRadius: '10px', padding: '40px', textAlign: 'center', color: theme.muted, fontSize: '13px' }}>
-        Configure o vídeo no editor →
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ marginBottom: '16px' }}>
-      <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, boxShadow: `0 0 20px ${theme.accent}10` }}>
-        {renderPlayer()}
-      </div>
-    </div>
-  )
-}
-
 export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const theme: Theme = { ...DEFAULT_THEME, ...(quiz.theme ?? {}) }
 
@@ -138,14 +51,20 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const [leadData, setLeadData] = useState({ name: '', email: '', phone: '' })
   const [stepStartTime, setStepStartTime] = useState(Date.now())
   const [animating, setAnimating] = useState(false)
-  const [videoUnlocked, setVideoUnlocked] = useState(false)
+  const [showContinue, setShowContinue] = useState(false)
+
+  // Ref para o timer — persiste entre renders sem causar re-render
+  const timerRef = useRef<any>(null)
+  const countRef = useRef(0)
 
   const blocks = quiz.blocks as QuizBlock[]
   const currentBlock = blocks[currentStep]
   const totalSteps = blocks.length
   const progress = Math.round(((currentStep + 1) / totalSteps) * 100)
-  const videoLockSeconds = currentBlock?.type === 'video' ? (currentBlock.videoLockSeconds ?? 0) : 0
-  const videoLocked = videoLockSeconds > 0 && !videoUnlocked
+
+  const isVideoBlock = currentBlock?.type === 'video'
+  const videoLockSeconds = isVideoBlock ? (currentBlock.videoLockSeconds ?? 0) : 0
+  const needsLock = videoLockSeconds > 0
 
   const track = useCallback(async (event_type: string, step?: number, metadata?: object) => {
     await fetch('/api/track', {
@@ -165,7 +84,10 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     track('step_view', currentStep)
     setStepStartTime(Date.now())
     setSelectedOption(null)
-    setVideoUnlocked(false)
+    // Reset do timer
+    clearInterval(timerRef.current)
+    countRef.current = 0
+    setShowContinue(!needsLock)
   }, [currentStep])
 
   const goNext = useCallback(() => {
@@ -175,77 +97,70 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     }
   }, [currentStep, totalSteps])
 
-  // Timer do vídeo — YouTube API detecta play/pause
+  // Inicia o timer quando o vídeo precisa de lock
   useEffect(() => {
-    if (!videoLocked) return
+    if (!needsLock) return
 
-    let count = 0
-    let interval: any = null
-    let ytPlayer: any = null
-
-    const startCounting = () => {
-      if (interval) return
-      interval = setInterval(() => {
-        count++
-        if (count >= videoLockSeconds) {
-          clearInterval(interval)
-          interval = null
-          setVideoUnlocked(true)
+    const startTimer = () => {
+      if (timerRef.current) return
+      timerRef.current = setInterval(() => {
+        countRef.current++
+        if (countRef.current >= videoLockSeconds) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+          setShowContinue(true)
           if (currentBlock?.videoLockAction === 'auto_next') goNext()
         }
       }, 1000)
     }
 
-    const stopCounting = () => {
-      clearInterval(interval)
-      interval = null
+    const stopTimer = () => {
+      clearInterval(timerRef.current)
+      timerRef.current = null
     }
 
+    // YouTube API
     if (currentBlock?.videoProvider === 'youtube' && currentBlock?.videoUrl) {
-      const loadYT = () => {
-        const divId = `yt-${currentBlock.id}`
-        const existing = document.getElementById(divId)
-        if (!existing) return
+      const setupYT = () => {
+        const vid = getYouTubeId(currentBlock.videoUrl || '')
+        const iframeId = `yt-${currentBlock.id}`
+        const iframe = document.getElementById(iframeId)
+        if (!vid || !iframe) return
 
-        ytPlayer = new (window as any).YT.Player(divId, {
+        new (window as any).YT.Player(iframeId, {
           events: {
             onStateChange: (e: any) => {
-              if (e.data === 1) startCounting()
-              else stopCounting()
+              if (e.data === 1) startTimer()
+              else stopTimer()
             },
           },
         })
       }
 
       if ((window as any).YT?.Player) {
-        setTimeout(loadYT, 1000)
+        setTimeout(setupYT, 800)
       } else {
         if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
           const tag = document.createElement('script')
           tag.src = 'https://www.youtube.com/iframe_api'
           document.head.appendChild(tag)
         }
-        (window as any).onYouTubeIframeAPIReady = () => setTimeout(loadYT, 500)
+        ;(window as any).onYouTubeIframeAPIReady = () => setTimeout(setupYT, 500)
       }
     } else {
       // Outros players — conta com janela em foco
-      const start = () => startCounting()
-      const stop = () => stopCounting()
-      window.addEventListener('blur', stop)
-      window.addEventListener('focus', start)
-      startCounting()
+      window.addEventListener('focus', startTimer)
+      window.addEventListener('blur', stopTimer)
+      startTimer()
       return () => {
-        stopCounting()
-        window.removeEventListener('blur', stop)
-        window.removeEventListener('focus', start)
+        stopTimer()
+        window.removeEventListener('focus', startTimer)
+        window.removeEventListener('blur', stopTimer)
       }
     }
 
-    return () => {
-      stopCounting()
-      if (ytPlayer?.destroy) ytPlayer.destroy()
-    }
-  }, [videoLocked, videoLockSeconds, currentStep])
+    return () => stopTimer()
+  }, [needsLock, videoLockSeconds, currentStep])
 
   const selectOption = async (option: string, index: number) => {
     setSelectedOption(option)
@@ -287,22 +202,67 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const renderTitle = (text: string, color?: string, fontFamily?: string, fontSize?: string) => {
     const parts = text.split(/\*([^*]+)\*/)
     return (
-      <h1 style={{
-        fontSize: fontSize || 'clamp(20px, 5vw, 28px)',
-        fontWeight: '800', lineHeight: '1.25', marginBottom: '12px',
-        letterSpacing: '-0.5px', fontFamily: fontFamily || 'Syne, sans-serif',
-        color: color || theme.text,
-      }}>
-        {parts.map((part, i) =>
-          i % 2 === 1
-            ? <span key={i} className="shimmer-text">{part}</span>
-            : <span key={i}>{part}</span>
-        )}
+      <h1 style={{ fontSize: fontSize || 'clamp(20px, 5vw, 28px)', fontWeight: '800', lineHeight: '1.25', marginBottom: '12px', letterSpacing: '-0.5px', fontFamily: fontFamily || 'Syne, sans-serif', color: color || theme.text }}>
+        {parts.map((part, i) => i % 2 === 1 ? <span key={i} className="shimmer-text">{part}</span> : <span key={i}>{part}</span>)}
       </h1>
     )
   }
 
+  const renderVideo = () => {
+    if (!currentBlock) return null
+    const b = currentBlock
+
+    if (b.videoProvider === 'vturb' && b.videoEmbed) {
+      return <div dangerouslySetInnerHTML={{ __html: b.videoEmbed }} style={{ width: '100%' }}/>
+    }
+
+    if (b.videoProvider === 'youtube' && b.videoUrl) {
+      const vid = getYouTubeId(b.videoUrl)
+      if (!vid) return null
+      return (
+        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
+          <iframe
+            id={`yt-${b.id}`}
+            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1`}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }}
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+          {/* Proteção — bloqueia cliques no título e logo */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50px', zIndex: 10 }}/>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '80px', height: '50px', zIndex: 10 }}/>
+        </div>
+      )
+    }
+
+    if (b.videoProvider === 'vimeo' && b.videoUrl) {
+      const vid = getVimeoId(b.videoUrl)
+      if (!vid) return null
+      return (
+        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
+          <iframe src={`https://player.vimeo.com/video/${vid}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
+        </div>
+      )
+    }
+
+    if (b.videoUrl) {
+      return (
+        <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
+          <iframe src={b.videoUrl} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{ background: theme.surface, border: `1px dashed ${theme.border}`, borderRadius: '10px', padding: '40px', textAlign: 'center', color: theme.muted, fontSize: '13px' }}>
+        Configure o vídeo no editor →
+      </div>
+    )
+  }
+
   if (!currentBlock) return null
+
+  const showCTAButton = !['question', 'capture', 'offer'].includes(currentBlock.type) && showContinue
 
   return (
     <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'DM Sans, sans-serif' }}>
@@ -326,30 +286,18 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         }
         .glow-card { position: relative; overflow: hidden; }
         .glow-card::before {
-          content: '';
-          position: absolute; top: -50px; right: -50px;
+          content: ''; position: absolute; top: -50px; right: -50px;
           width: 180px; height: 180px;
           background: radial-gradient(circle, ${theme.accent}18 0%, transparent 70%);
-          pointer-events: none;
-          animation: glow-pulse 3s ease-in-out infinite;
-        }
-        .glow-card::after {
-          content: '';
-          position: absolute; bottom: -30px; left: -30px;
-          width: 120px; height: 120px;
-          background: radial-gradient(circle, ${theme.accent2}10 0%, transparent 70%);
-          pointer-events: none;
+          pointer-events: none; animation: glow-pulse 3s ease-in-out infinite;
         }
         .opt-btn { transition: all 0.2s ease; }
-        .opt-btn:hover {
-          border-color: ${theme.accent}80 !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 20px ${theme.accent}20 !important;
-        }
+        .opt-btn:hover { border-color: ${theme.accent}80 !important; transform: translateY(-1px); }
       `}</style>
 
+      {/* PROGRESS BAR */}
       <div style={{ position: 'sticky', top: 0, zIndex: 50, background: `${theme.surface}f7`, borderBottom: `1px solid ${theme.border}`, backdropFilter: 'blur(12px)' }}>
-        <div style={{ maxWidth: '480px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+        <div style={{ maxWidth: '480px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '-1px', fontFamily: 'Syne, sans-serif', color: theme.text }}>
             Quiz<span style={{ color: theme.accent2 }}>AI</span>
           </div>
@@ -357,9 +305,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
             <div style={{ height: '3px', background: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{ height: '100%', background: `linear-gradient(90deg, ${theme.accent}, ${theme.accent2})`, borderRadius: '2px', width: `${progress}%`, transition: 'width 0.5s ease' }}/>
             </div>
-            <div style={{ fontSize: '10px', color: theme.muted, marginTop: '3px', textAlign: 'right' }}>
-              {currentStep + 1} de {totalSteps}
-            </div>
+            <div style={{ fontSize: '10px', color: theme.muted, marginTop: '3px', textAlign: 'right' }}>{currentStep + 1} de {totalSteps}</div>
           </div>
           <div style={{ fontSize: '11px', color: theme.muted, fontWeight: '600', fontFamily: 'Syne, sans-serif' }}>
             {String(currentStep + 1).padStart(2,'0')}/{String(totalSteps).padStart(2,'0')}
@@ -367,21 +313,21 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         </div>
       </div>
 
+      {/* CONTENT */}
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '32px 20px 80px', opacity: animating ? 0 : 1, transition: 'opacity 0.2s ease' }}>
-
         <div style={{ position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)', width: '500px', height: '400px', background: `radial-gradient(ellipse, ${theme.accent}08 0%, transparent 70%)`, pointerEvents: 'none', zIndex: 0 }}/>
 
+        {/* TAG */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10px', letterSpacing: '1.5px', color: theme.accent2, textTransform: 'uppercase', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: theme.accent2, boxShadow: `0 0 10px ${theme.accent2}` }}/>
           {currentBlock.label}
         </div>
 
+        {/* CARD */}
         <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, boxShadow: `0 0 40px ${theme.accent}08` }}>
           {renderTitle(currentBlock.title, currentBlock.titleColor, currentBlock.fontFamily, currentBlock.fontSize)}
           {currentBlock.subtitle && (
-            <p style={{ fontSize: '14px', color: theme.muted, lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
-              {currentBlock.subtitle}
-            </p>
+            <p style={{ fontSize: '14px', color: theme.muted, lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>{currentBlock.subtitle}</p>
           )}
           {currentBlock.imageUrl && (
             <div style={{ marginTop: '16px', borderRadius: '10px', overflow: 'hidden', border: `1px solid ${theme.border}` }}>
@@ -390,19 +336,20 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           )}
         </div>
 
+        {/* VÍDEO — sempre montado, não re-renderiza */}
         {(currentBlock.type === 'video' || currentBlock.videoUrl || currentBlock.videoEmbed) && (
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <VideoBlock block={currentBlock} theme={theme} />
+          <div style={{ marginBottom: '16px', position: 'relative', zIndex: 1 }}>
+            <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, boxShadow: `0 0 20px ${theme.accent}10` }}>
+              {renderVideo()}
+            </div>
           </div>
         )}
 
+        {/* PROVA SOCIAL */}
         {currentBlock.testimonialName && (
           <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, #22c55e15 0%, transparent 70%)', pointerEvents: 'none' }}/>
             {currentBlock.testimonialText && (
-              <p style={{ fontSize: '14px', color: theme.text, lineHeight: '1.6', marginBottom: '14px', fontStyle: 'italic' }}>
-                "{currentBlock.testimonialText}"
-              </p>
+              <p style={{ fontSize: '14px', color: theme.text, lineHeight: '1.6', marginBottom: '14px', fontStyle: 'italic' }}>"{currentBlock.testimonialText}"</p>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {currentBlock.testimonialPhoto ? (
@@ -420,6 +367,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
+        {/* OPÇÕES */}
         {currentBlock.type === 'question' && currentBlock.options.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             {currentBlock.options.map((opt, i) => (
@@ -430,15 +378,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
                 cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
                 boxShadow: selectedOption === opt ? `0 0 20px ${theme.accent}25` : 'none',
               }}>
-                <div style={{
-                  width: '26px', height: '26px', borderRadius: '50%',
-                  border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.muted}`,
-                  background: selectedOption === opt ? `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)` : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '11px', fontWeight: '700', flexShrink: 0, marginTop: '1px',
-                  color: selectedOption === opt ? '#fff' : theme.muted, transition: 'all 0.2s',
-                  boxShadow: selectedOption === opt ? `0 0 12px ${theme.accent}50` : 'none',
-                }}>
+                <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.muted}`, background: selectedOption === opt ? `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0, marginTop: '1px', color: selectedOption === opt ? '#fff' : theme.muted, transition: 'all 0.2s' }}>
                   {String.fromCharCode(65 + i)}
                 </div>
                 <span style={{ fontSize: '14px', color: theme.text, lineHeight: '1.5', paddingTop: '3px' }}>{opt}</span>
@@ -447,6 +387,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
+        {/* CAPTURA */}
         {currentBlock.type === 'capture' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             {['name','email','phone'].map((field) => {
@@ -455,13 +396,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
               return (
                 <div key={field}>
                   <div style={{ fontSize: '10px', color: theme.muted, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>{labels[field]}</div>
-                  <input
-                    type={field === 'email' ? 'email' : 'text'}
-                    value={(leadData as any)[field]}
-                    onChange={e => setLeadData(d => ({...d, [field]: e.target.value}))}
-                    placeholder={placeholders[field]}
-                    style={{ width: '100%', background: `${theme.surface}80`, border: `1px solid ${theme.border}`, borderRadius: '10px', color: theme.text, fontSize: '14px', padding: '13px 14px', outline: 'none', boxSizing: 'border-box' }}
-                  />
+                  <input type={field === 'email' ? 'email' : 'text'} value={(leadData as any)[field]} onChange={e => setLeadData(d => ({...d, [field]: e.target.value}))} placeholder={placeholders[field]} style={{ width: '100%', background: `${theme.surface}80`, border: `1px solid ${theme.border}`, borderRadius: '10px', color: theme.text, fontSize: '14px', padding: '13px 14px', outline: 'none', boxSizing: 'border-box' }}/>
                 </div>
               )
             })}
@@ -472,14 +407,16 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
+        {/* OFERTA */}
         {currentBlock.type === 'offer' && (
           <button onClick={handleCTAClick} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             Quero meu plano agora →
           </button>
         )}
 
-        {!['question','capture','offer'].includes(currentBlock.type) && !videoLocked && (
-          <button onClick={goNext} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1 }}>
+        {/* CTA — aparece suavemente quando desbloqueado */}
+        {showCTAButton && (
+          <button onClick={goNext} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1, animation: 'fadeIn 0.5s ease' }}>
             Continuar →
           </button>
         )}
