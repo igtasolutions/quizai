@@ -47,3 +47,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Falha ao salvar lead' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { lead_id, video_seconds_watched } = body
+
+    if (!lead_id) return NextResponse.json({ error: 'lead_id obrigatório' }, { status: 400 })
+
+    const { error } = await supabase
+      .from('leads')
+      .update({ video_seconds_watched })
+      .eq('id', lead_id)
+
+    if (error) throw error
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Erro ao atualizar lead:', error)
+    return NextResponse.json({ error: 'Falha ao atualizar lead' }, { status: 500 })
+  }
+}
