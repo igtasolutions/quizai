@@ -239,7 +239,7 @@ export default async function LeadsPage() {
                   { label: 'Assistiram', value: va.totalWatchers, color: '#60a5fa' },
                   { label: 'Tempo médio', value: `${Math.floor(va.avgSeconds / 60)}min ${va.avgSeconds % 60}s`, color: '#fbbf24' },
                   { label: '% médio assistido', value: `${va.avgPct}%`, color: '#a78bfa' },
-                  { label: 'Chegaram ao pitch', value: va.videoPitchSecond > 0 ? `${va.pitchRate}%` : '—', color: '#22c55e' },
+                  { label: 'Chegaram ao pitch', value: va.pitchSecond > 0 ? `${va.pitchRate}%` : '—', color: '#22c55e' },
                 ].map(s => (
                   <div key={s.label} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #162035', borderRadius: '10px', padding: '12px' }}>
                     <div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '6px' }}>{s.label}</div>
