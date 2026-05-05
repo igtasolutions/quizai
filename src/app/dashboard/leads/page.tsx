@@ -37,19 +37,22 @@ export default async function LeadsPage() {
   const totalCompleted = allLeads?.filter(l => l.completed).length ?? 0
   const totalConverted = allLeads?.filter(l => l.converted).length ?? 0
 
-  // Funil por quiz
+  const typeColor: Record<string, string> = {
+    headline: '#a78bfa', question: '#60a5fa', insight: '#fde047',
+    capture: '#f9a8d4', offer: '#fdba74', bridge: '#5eead4',
+    social_proof: '#86efac', manual: '#fbbf24', video: '#fca5a5',
+  }
+
   const quizFunnels = quizzes?.map(quiz => {
     const leads = allLeads?.filter(l => l.quiz_id === quiz.id) ?? []
     const blocks = (quiz.blocks as any[]) ?? []
-    const totalSteps = blocks.length || 1
 
-    // Conta quantos leads chegaram em cada etapa
-    const stepCounts = blocks.map((_: any, stepIdx: number) => ({
-      step: stepIdx + 1,
-      label: blocks[stepIdx]?.label ?? `Etapa ${stepIdx + 1}`,
-      title: blocks[stepIdx]?.title?.replace(/\*([^*]+)\*/g, '$1').substring(0, 40) ?? '',
-      type: blocks[stepIdx]?.type ?? 'question',
-      count: leads.filter(l => l.step_reached > stepIdx).length,
+    const steps = blocks.map((b: any, i: number) => ({
+      step: i + 1,
+      label: b?.label ?? `Etapa ${i + 1}`,
+      title: (b?.title ?? '').replace(/\*([^*]+)\*/g, '$1').substring(0, 40),
+      type: b?.type ?? 'question',
+      count: leads.filter(l => l.step_reached > i).length,
     }))
 
     return {
@@ -60,21 +63,14 @@ export default async function LeadsPage() {
       completed: leads.filter(l => l.completed).length,
       converted: leads.filter(l => l.converted).length,
       views: quiz.total_views,
-      steps: stepCounts,
+      steps,
       maxCount: leads.length || 1,
     }
   }) ?? []
 
-  const typeColor: Record<string, string> = {
-    headline: '#a78bfa', question: '#60a5fa', insight: '#fde047',
-    capture: '#f9a8d4', offer: '#fdba74', bridge: '#5eead4',
-    social_proof: '#86efac', manual: '#fbbf24', video: '#fca5a5',
-  }
-
   return (
     <div style={{ padding: '32px', fontFamily: 'DM Sans, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
 
-      {/* HEADER */}
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
           Analytics de Leads
@@ -84,7 +80,6 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      {/* STATS GERAIS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
         {[
           { label: 'Total de leads', value: totalLeads, color: '#60a5fa' },
@@ -100,7 +95,6 @@ export default async function LeadsPage() {
         ))}
       </div>
 
-      {/* FUNIL POR QUIZ */}
       {quizFunnels.length === 0 ? (
         <div style={{ background: '#0a1120', border: '1px dashed #162035', borderRadius: '14px', padding: '48px', textAlign: 'center' }}>
           <div style={{ fontSize: '32px', marginBottom: '10px' }}>◈</div>
@@ -112,7 +106,6 @@ export default async function LeadsPage() {
           <div key={quiz.id} style={{ background: '#0a1120', border: '1px solid #162035', borderRadius: '16px', padding: '24px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '200px', height: '200px', background: 'radial-gradient(circle, rgba(37,99,255,0.06) 0%, transparent 70%)', pointerEvents: 'none' }}/>
 
-            {/* HEADER DO QUIZ */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '4px' }}>{quiz.title}</div>
@@ -132,58 +125,46 @@ export default async function LeadsPage() {
               </div>
             </div>
 
-            {/* FUNIL POR ETAPA */}
             {quiz.totalLeads === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px', color: '#4e6a90', fontSize: '13px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px' }}>
                 Nenhum lead ainda neste quiz
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {quiz.steps.map((step, idx) => {
                   const pct = Math.round((step.count / quiz.maxCount) * 100)
                   const prevCount = idx > 0 ? quiz.steps[idx - 1].count : quiz.maxCount
                   const dropPct = prevCount > 0 ? Math.round(((prevCount - step.count) / prevCount) * 100) : 0
                   const color = typeColor[step.type] ?? '#60a5fa'
-                  const isWorst = quiz.steps.length > 1 && step.count === Math.min(...quiz.steps.map(s => s.count))
+                  const isWorst = step.count === Math.min(...quiz.steps.map((s: any) => s.count))
 
                   return (
                     <div key={step.step}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                        {/* NÚMERO */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
                         <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: `${color}20`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: '700', color, flexShrink: 0 }}>
                           {step.step}
                         </div>
-
-                        {/* TIPO */}
-                        <div style={{ fontSize: '8px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', background: `${color}15`, color, border: `1px solid ${color}30`, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <div style={{ fontSize: '9px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', background: `${color}15`, color, border: `1px solid ${color}30`, flexShrink: 0, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
                           {step.type}
                         </div>
-
-                        {/* LABEL */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '11px', color: '#4e6a90', marginBottom: '1px', textTransform: 'uppercase', letterSpacing: '0.3px', fontSize: '9px' }}>{step.label}</div>
-                          <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.title}</div>
+                          <div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase' as const, letterSpacing: '0.3px' }}>{step.label}</div>
+                          <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{step.title}</div>
                         </div>
-
-                        {/* CONTAGEM */}
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
                           <div style={{ fontSize: '13px', fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff' }}>{step.count}</div>
                           <div style={{ fontSize: '10px', color: pct > 60 ? '#22c55e' : pct > 30 ? '#fbbf24' : '#f87171', fontWeight: '600' }}>{pct}%</div>
                         </div>
                       </div>
-
-                      {/* BARRA */}
                       <div style={{ marginLeft: '32px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: '3px', transition: 'width 0.5s ease', boxShadow: pct > 80 ? `0 0 8px ${color}40` : 'none' }}/>
+                          <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: '3px' }}/>
                         </div>
-                        {/* DROP INDICATOR */}
                         {idx > 0 && dropPct > 0 && (
-                          <div style={{ fontSize: '9px', color: dropPct > 30 ? '#f87171' : '#4e6a90', fontWeight: '600', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            {dropPct > 30 ? '↓' : '↓'} {dropPct}%
+                          <div style={{ fontSize: '9px', color: dropPct > 30 ? '#f87171' : '#4e6a90', fontWeight: '600', flexShrink: 0 }}>
+                            ↓ {dropPct}%
                           </div>
                         )}
-                        {/* PIOR ETAPA */}
                         {isWorst && quiz.totalLeads > 0 && (
                           <div style={{ fontSize: '8px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#f87171', padding: '1px 6px', borderRadius: '4px', flexShrink: 0 }}>
                             maior saída
