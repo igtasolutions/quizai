@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Theme {
   bg: string
@@ -81,7 +81,8 @@ function VideoBlock({ block, theme }: { block: QuizBlock; theme: Theme }) {
       return (
         <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
           <iframe
-            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0`}
+            id={`yt-${block.id}`}
+            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1`}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }}
             allowFullScreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -174,13 +175,15 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     }
   }, [currentStep, totalSteps])
 
-  // Timer do vídeo — conta apenas com janela em foco
+  // Timer do vídeo — YouTube API detecta play/pause
   useEffect(() => {
     if (!videoLocked) return
+
     let count = 0
     let interval: any = null
+    let ytPlayer: any = null
 
-    const start = () => {
+    const startCounting = () => {
       if (interval) return
       interval = setInterval(() => {
         count++
@@ -193,19 +196,54 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
       }, 1000)
     }
 
-    const stop = () => {
+    const stopCounting = () => {
       clearInterval(interval)
       interval = null
     }
 
-    window.addEventListener('blur', stop)
-    window.addEventListener('focus', start)
-    start()
+    if (currentBlock?.videoProvider === 'youtube' && currentBlock?.videoUrl) {
+      const loadYT = () => {
+        const divId = `yt-${currentBlock.id}`
+        const existing = document.getElementById(divId)
+        if (!existing) return
+
+        ytPlayer = new (window as any).YT.Player(divId, {
+          events: {
+            onStateChange: (e: any) => {
+              if (e.data === 1) startCounting()
+              else stopCounting()
+            },
+          },
+        })
+      }
+
+      if ((window as any).YT?.Player) {
+        setTimeout(loadYT, 1000)
+      } else {
+        if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+          const tag = document.createElement('script')
+          tag.src = 'https://www.youtube.com/iframe_api'
+          document.head.appendChild(tag)
+        }
+        (window as any).onYouTubeIframeAPIReady = () => setTimeout(loadYT, 500)
+      }
+    } else {
+      // Outros players — conta com janela em foco
+      const start = () => startCounting()
+      const stop = () => stopCounting()
+      window.addEventListener('blur', stop)
+      window.addEventListener('focus', start)
+      startCounting()
+      return () => {
+        stopCounting()
+        window.removeEventListener('blur', stop)
+        window.removeEventListener('focus', start)
+      }
+    }
 
     return () => {
-      stop()
-      window.removeEventListener('blur', stop)
-      window.removeEventListener('focus', start)
+      stopCounting()
+      if (ytPlayer?.destroy) ytPlayer.destroy()
     }
   }, [videoLocked, videoLockSeconds, currentStep])
 
@@ -310,7 +348,6 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         }
       `}</style>
 
-      {/* BARRA DE PROGRESSO */}
       <div style={{ position: 'sticky', top: 0, zIndex: 50, background: `${theme.surface}f7`, borderBottom: `1px solid ${theme.border}`, backdropFilter: 'blur(12px)' }}>
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '-1px', fontFamily: 'Syne, sans-serif', color: theme.text }}>
@@ -330,18 +367,15 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         </div>
       </div>
 
-      {/* CONTEÚDO */}
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '32px 20px 80px', opacity: animating ? 0 : 1, transition: 'opacity 0.2s ease' }}>
 
         <div style={{ position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)', width: '500px', height: '400px', background: `radial-gradient(ellipse, ${theme.accent}08 0%, transparent 70%)`, pointerEvents: 'none', zIndex: 0 }}/>
 
-        {/* TAG */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10px', letterSpacing: '1.5px', color: theme.accent2, textTransform: 'uppercase', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: theme.accent2, boxShadow: `0 0 10px ${theme.accent2}` }}/>
           {currentBlock.label}
         </div>
 
-        {/* CARD COM GLOW */}
         <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, boxShadow: `0 0 40px ${theme.accent}08` }}>
           {renderTitle(currentBlock.title, currentBlock.titleColor, currentBlock.fontFamily, currentBlock.fontSize)}
           {currentBlock.subtitle && (
@@ -356,14 +390,12 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           )}
         </div>
 
-        {/* VÍDEO */}
         {(currentBlock.type === 'video' || currentBlock.videoUrl || currentBlock.videoEmbed) && (
           <div style={{ position: 'relative', zIndex: 1 }}>
             <VideoBlock block={currentBlock} theme={theme} />
           </div>
         )}
 
-        {/* PROVA SOCIAL */}
         {currentBlock.testimonialName && (
           <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, #22c55e15 0%, transparent 70%)', pointerEvents: 'none' }}/>
@@ -388,7 +420,6 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
-        {/* OPÇÕES */}
         {currentBlock.type === 'question' && currentBlock.options.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             {currentBlock.options.map((opt, i) => (
@@ -416,7 +447,6 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
-        {/* CAPTURA */}
         {currentBlock.type === 'capture' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             {['name','email','phone'].map((field) => {
@@ -442,14 +472,12 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
-        {/* OFERTA */}
         {currentBlock.type === 'offer' && (
           <button onClick={handleCTAClick} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, marginBottom: '24px', position: 'relative', zIndex: 1 }}>
             Quero meu plano agora →
           </button>
         )}
 
-        {/* CTA PADRÃO — esconde se vídeo bloqueado */}
         {!['question','capture','offer'].includes(currentBlock.type) && !videoLocked && (
           <button onClick={goNext} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1 }}>
             Continuar →
