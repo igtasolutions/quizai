@@ -188,7 +188,8 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const currentBlock = blocks[currentStep]
   const totalSteps = blocks.length
   const progress = Math.round(((currentStep + 1) / totalSteps) * 100)
-  const videoLocked = currentBlock?.type === 'video' && (currentBlock.videoLockSeconds ?? 0) > 0 && !videoUnlocked
+  const videoLockSeconds = currentBlock?.type === 'video' ? (currentBlock.videoLockSeconds ?? 0) : 0
+  const videoLocked = videoLockSeconds > 0 && !videoUnlocked
 
   const track = useCallback(async (event_type: string, step?: number, metadata?: object) => {
     await fetch('/api/track', {
@@ -210,6 +211,40 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     setSelectedOption(null)
     setVideoUnlocked(false)
   }, [currentStep])
+
+  // Timer do vídeo — conta só quando a janela está em foco
+useEffect(() => {
+  if (!videoLocked) return
+  let count = 0
+  let interval: any = null
+
+  const start = () => {
+    if (interval) return
+    interval = setInterval(() => {
+      count++
+      if (count >= videoLockSeconds) {
+        clearInterval(interval)
+        setVideoUnlocked(true)
+        if (currentBlock?.videoLockAction === 'auto_next') goNext()
+      }
+    }, 1000)
+  }
+
+  const stop = () => {
+    clearInterval(interval)
+    interval = null
+  }
+
+  window.addEventListener('blur', stop)
+  window.addEventListener('focus', start)
+  start()
+
+  return () => {
+    stop()
+    window.removeEventListener('blur', stop)
+    window.removeEventListener('focus', start)
+  }
+}, [videoLocked, videoLockSeconds, currentStep])
 
   const goNext = useCallback(() => {
     if (currentStep < totalSteps - 1) {
