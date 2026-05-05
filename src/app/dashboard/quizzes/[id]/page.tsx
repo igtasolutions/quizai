@@ -102,17 +102,23 @@ export default function EditarQuizPage() {
 
   const salvar = async (extraUpdates = {}) => {
     setSalvando(true)
+    const tema = selectedTheme === 6 ? customTheme : THEMES[selectedTheme]
     const res = await fetch(`/api/quiz/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocks, theme: currentTheme, ...extraUpdates }),
+      body: JSON.stringify({ 
+        blocks: blocks, 
+        theme: tema,
+        ...extraUpdates 
+      }),
     })
+    const data = await res.json()
     setSalvando(false)
     if (res.ok) {
       setMsg('Salvo! ✓')
       setTimeout(() => setMsg(''), 2000)
     } else {
-      setMsg('Erro ao salvar')
+      setMsg('Erro: ' + (data.error || 'falha ao salvar'))
     }
   }
 
