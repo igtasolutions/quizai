@@ -70,45 +70,101 @@ function getVimeoId(url: string) {
 }
 
 function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme; onUnlock: () => void }) {
-  const [secondsLeft, setSecondsLeft] = useState(block.videoLockSeconds ?? 0)
+  const [secondsWatched, setSecondsWatched] = useState(0)
   const [unlocked, setUnlocked] = useState((block.videoLockSeconds ?? 0) === 0)
+  const [isPlaying, setIsPlaying] = useState(false)
   const intervalRef = useRef<any>(null)
+  const playerRef = useRef<any>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const lockSeconds = block.videoLockSeconds ?? 0
 
   useEffect(() => {
-    if (unlocked) return
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) {
-          clearInterval(intervalRef.current)
-          setUnlocked(true)
-          if (block.videoLockAction === 'auto_next') onUnlock()
-          return 0
-        }
-        return s - 1
+    if (unlocked || block.videoProvider !== 'youtube') return
+
+    // Carrega YouTube IFrame API
+    if (!(window as any).YT) {
+      const tag = document.createElement('script')
+      tag.src = 'https://www.youtube.com/iframe_api'
+      document.head.appendChild(tag)
+    }
+
+    const initPlayer = () => {
+      const vid = getYouTubeId(block.videoUrl || '')
+      if (!vid || !containerRef.current) return
+
+      const divId = `yt-player-${block.id}`
+      const div = document.createElement('div')
+      div.id = divId
+      containerRef.current.innerHTML = ''
+      containerRef.current.appendChild(div)
+
+      playerRef.current = new (window as any).YT.Player(divId, {
+        videoId: vid,
+        playerVars: {
+          rel: 0,
+          modestbranding: 1,
+          showinfo: 0,
+          iv_load_policy: 3,
+        },
+        events: {
+          onStateChange: (event: any) => {
+            // 1 = playing, 2 = paused, 0 = ended
+            if (event.data === 1) {
+              setIsPlaying(true)
+            } else {
+              setIsPlaying(false)
+            }
+          },
+        },
       })
-    }, 1000)
-    return () => clearInterval(intervalRef.current)
+    }
+
+    if ((window as any).YT?.Player) {
+      initPlayer()
+    } else {
+      (window as any).onYouTubeIframeAPIReady = initPlayer
+    }
+
+    return () => { clearInterval(intervalRef.current) }
   }, [])
 
-  const mins = Math.floor(secondsLeft / 60)
-  const secs = secondsLeft % 60
-  const timeStr = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`
+  // Conta só quando está tocando
+  useEffect(() => {
+    if (unlocked) return
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        setSecondsWatched(s => {
+          const next = s + 1
+          if (next >= lockSeconds) {
+            clearInterval(intervalRef.current)
+            setUnlocked(true)
+            if (block.videoLockAction === 'auto_next') onUnlock()
+          }
+          return next
+        })
+      }, 1000)
+    } else {
+      clearInterval(intervalRef.current)
+    }
+    return () => clearInterval(intervalRef.current)
+  }, [isPlaying, unlocked])
 
   const renderPlayer = () => {
     if (block.videoProvider === 'vturb' && block.videoEmbed) {
       return <div dangerouslySetInnerHTML={{ __html: block.videoEmbed }} style={{ width: '100%' }}/>
     }
+
     if (block.videoProvider === 'youtube' && block.videoUrl) {
-      const vid = getYouTubeId(block.videoUrl)
-      if (!vid) return null
       return (
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-          <iframe src={`https://www.youtube-nocookie.com/embed/${vid}?rel=0&modestbranding=1&autoplay=0`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '40px', zIndex: 10 }}/>
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: '60px', height: '40px', zIndex: 10 }}/>
+          <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}/>
+          {/* Proteção — bloqueia clique no título e logo do YouTube */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50px', zIndex: 10, cursor: 'default' }}/>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px', zIndex: 10, cursor: 'default' }}/>
         </div>
       )
     }
+
     if (block.videoProvider === 'vimeo' && block.videoUrl) {
       const vid = getVimeoId(block.videoUrl)
       if (!vid) return null
@@ -118,6 +174,7 @@ function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme
         </div>
       )
     }
+
     if (block.videoUrl) {
       return (
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
@@ -125,20 +182,15 @@ function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme
         </div>
       )
     }
+
     return null
   }
 
   return (
     <div style={{ marginBottom: '16px' }}>
-      <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}`, boxShadow: `0 0 30px ${theme.accent}15` }}>
+      <div style={{ borderRadius: '12px', overflow: 'hidden', border: `1px solid ${theme.border}` }}>
         {renderPlayer()}
       </div>
-      {!unlocked && (
-        <div style={{ background: `${theme.accent}10`, border: `1px solid ${theme.accent}25`, borderRadius: '10px', padding: '12px 16px', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '12px', color: theme.muted }}>⏳ Continue assistindo para avançar</span>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '16px', color: theme.accent2 }}>{timeStr}</span>
-        </div>
-      )}
     </div>
   )
 }
