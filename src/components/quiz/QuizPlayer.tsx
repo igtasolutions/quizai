@@ -82,7 +82,7 @@ function VideoBlock({ block, theme }: { block: QuizBlock; theme: Theme }) {
         <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
           <iframe
             id={`yt-${block.id}`}
-            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1`}
+            src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }}
             allowFullScreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
