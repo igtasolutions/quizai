@@ -345,6 +345,77 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
+        {/* BLOCO RICO */}
+        {currentBlock.type === 'rich' && (currentBlock as any).sections && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', position: 'relative', zIndex: 1 }}>
+            {((currentBlock as any).sections as any[]).map((section: any) => (
+              <div key={section.id} style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: `radial-gradient(circle, ${theme.accent}10 0%, transparent 70%)`, pointerEvents: 'none' }}/>
+
+                {/* BADGE */}
+                {section.badge && (
+                  <div style={{ display: 'inline-block', background: `${theme.accent}20`, border: `1px solid ${theme.accent}40`, color: theme.accent2, fontSize: '9px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+                    {section.badge}
+                  </div>
+                )}
+
+                {/* NÚMERO */}
+                {section.number && (
+                  <div style={{ marginBottom: '4px' }}>
+                    {section.numberLabel && <div style={{ fontSize: '9px', color: theme.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>{section.numberLabel}</div>}
+                    <div style={{ fontSize: '48px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: theme.border, lineHeight: 1 }}>{section.number}</div>
+                  </div>
+                )}
+
+                {/* TÍTULO */}
+                {section.title && (
+                  <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: theme.text, marginBottom: '8px', lineHeight: '1.3' }}>
+                    {section.title}
+                  </div>
+                )}
+
+                {/* TEXTO */}
+                {section.text && (
+                  <p style={{ fontSize: '13px', color: theme.muted, lineHeight: '1.6', marginBottom: '10px', whiteSpace: 'pre-line' }}>
+                    {section.text}
+                  </p>
+                )}
+
+                {/* LISTA */}
+                {section.listType !== 'none' && section.items && section.items.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                    {section.items.map((item: string, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ color: section.listType === 'check' ? '#22c55e' : '#f87171', fontWeight: '700', fontSize: '13px', flexShrink: 0, marginTop: '1px' }}>
+                          {section.listType === 'check' ? '✓' : '✕'}
+                        </span>
+                        <span style={{ fontSize: '13px', color: theme.text, lineHeight: '1.5' }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* IMAGEM */}
+                {section.imageUrl && (
+                  <div style={{ borderRadius: '10px', overflow: 'hidden', marginBottom: '10px', border: `1px solid ${theme.border}` }}>
+                    <img src={section.imageUrl} alt="" style={{ width: '100%', display: 'block', maxHeight: '250px', objectFit: 'cover' }}/>
+                  </div>
+                )}
+
+                {/* BOTÃO */}
+                {section.buttonText && (
+                  <button
+                    onClick={() => { if (section.buttonUrl) window.open(section.buttonUrl, '_blank') }}
+                    style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '14px', padding: '13px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: `0 0 20px ${theme.accent}40` }}
+                  >
+                    {section.buttonText}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* PROVA SOCIAL */}
         {currentBlock.testimonialName && (
           <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>

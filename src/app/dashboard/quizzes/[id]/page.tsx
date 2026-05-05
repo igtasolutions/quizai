@@ -2,6 +2,20 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
+interface RichSection {
+  id: string
+  badge?: string
+  number?: string
+  numberLabel?: string
+  title?: string
+  text?: string
+  listType?: 'check' | 'cross' | 'none'
+  items?: string[]
+  buttonText?: string
+  buttonUrl?: string
+  imageUrl?: string
+}
+
 interface Block {
   id: string
   type: string
@@ -19,21 +33,19 @@ interface Block {
   videoEmbed?: string
   videoLockSeconds?: number
   videoLockAction?: string
+  videoDuration?: number
+  videoPitchSecond?: number
   testimonialPhoto?: string
   testimonialName?: string
   testimonialRole?: string
   testimonialText?: string
+  sections?: RichSection[]
 }
 
 interface Theme {
   name: string
-  bg: string
-  surface: string
-  border: string
-  accent: string
-  accent2: string
-  text: string
-  muted: string
+  bg: string; surface: string; border: string
+  accent: string; accent2: string; text: string; muted: string
 }
 
 const THEMES: Theme[] = [
@@ -56,6 +68,7 @@ const typeColors: Record<string, { bg: string; text: string; border: string }> =
   social_proof: { bg: 'rgba(34,197,94,0.1)',   text: '#86efac', border: 'rgba(34,197,94,0.2)' },
   manual:       { bg: 'rgba(251,191,36,0.1)',  text: '#fbbf24', border: 'rgba(251,191,36,0.2)' },
   video:        { bg: 'rgba(239,68,68,0.1)',   text: '#fca5a5', border: 'rgba(239,68,68,0.2)' },
+  rich:         { bg: 'rgba(16,185,129,0.1)',  text: '#6ee7b7', border: 'rgba(16,185,129,0.2)' },
 }
 
 const inp: React.CSSProperties = { width:'100%', background:'rgba(0,0,0,0.4)', border:'1px solid #162035', borderRadius:'8px', color:'#eef2ff', fontSize:'12px', padding:'9px 12px', outline:'none', boxSizing:'border-box', fontFamily:'DM Sans, sans-serif' }
@@ -80,6 +93,7 @@ export default function EditarQuizPage() {
   const [dragOver, setDragOver] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const photoRef = useRef<HTMLInputElement>(null)
+  const sectionFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/quiz')
@@ -106,20 +120,11 @@ export default function EditarQuizPage() {
     const res = await fetch(`/api/quiz/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        blocks: blocks, 
-        theme: tema,
-        ...extraUpdates 
-      }),
+      body: JSON.stringify({ blocks, theme: tema, ...extraUpdates }),
     })
-    const data = await res.json()
     setSalvando(false)
-    if (res.ok) {
-      setMsg('Salvo! ✓')
-      setTimeout(() => setMsg(''), 2000)
-    } else {
-      setMsg('Erro: ' + (data.error || 'falha ao salvar'))
-    }
+    if (res.ok) { setMsg('Salvo! ✓'); setTimeout(() => setMsg(''), 2000) }
+    else setMsg('Erro ao salvar')
   }
 
   const publicar = async () => {
@@ -141,6 +146,32 @@ export default function EditarQuizPage() {
     if (editando === blockId) setEditando(null)
   }
 
+  // SEÇÕES DO BLOCO RICO
+  const addSection = (blockId: string) => {
+    const newSection: RichSection = {
+      id: `sec-${Date.now()}`,
+      title: '',
+      text: '',
+      listType: 'none',
+      items: [],
+    }
+    setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, sections: [...(b.sections ?? []), newSection] } : b))
+  }
+
+  const updateSection = (blockId: string, sectionId: string, field: string, value: any) => {
+    setBlocks(bs => bs.map(b => b.id === blockId ? {
+      ...b,
+      sections: (b.sections ?? []).map(s => s.id === sectionId ? { ...s, [field]: value } : s)
+    } : b))
+  }
+
+  const deleteSection = (blockId: string, sectionId: string) => {
+    setBlocks(bs => bs.map(b => b.id === blockId ? {
+      ...b,
+      sections: (b.sections ?? []).filter(s => s.id !== sectionId)
+    } : b))
+  }
+
   const addManualBlock = () => {
     const nb: Block = { id: `manual-${Date.now()}`, type: 'manual', label: 'BLOCO MANUAL', title: 'Seu título aqui', subtitle: 'Escreva seu conteúdo aqui...', options: [] }
     setBlocks(bs => [...bs, nb])
@@ -148,38 +179,49 @@ export default function EditarQuizPage() {
     setPreviewStep(blocks.length)
   }
 
-  const addVideoBlock = () => {
-    const nb: Block = { id: `video-${Date.now()}`, type: 'video', label: 'VÍDEO', title: 'Assista ao vídeo completo', subtitle: '', options: [], videoProvider: 'youtube', videoLockSeconds: 0, videoLockAction: 'show_button' }
+  const addRichBlock = () => {
+    const nb: Block = {
+      id: `rich-${Date.now()}`, type: 'rich', label: 'BLOCO RICO', title: 'Título principal', subtitle: '', options: [],
+      sections: [
+        { id: `sec-${Date.now()}`, title: 'Seção 1', text: 'Descrição desta seção', listType: 'none', items: [] }
+      ]
+    }
     setBlocks(bs => [...bs, nb])
     setEditando(nb.id)
     setPreviewStep(blocks.length)
   }
 
-  const uploadImage = async (blockId: string, file: File, field: string) => {
+  const addVideoBlock = () => {
+    const nb: Block = { id: `video-${Date.now()}`, type: 'video', label: 'VÍDEO', title: 'Assista ao vídeo completo', subtitle: '', options: [], videoProvider: 'youtube', videoLockSeconds: 0, videoLockAction: 'show_button', videoDuration: 0, videoPitchSecond: 0 }
+    setBlocks(bs => [...bs, nb])
+    setEditando(nb.id)
+    setPreviewStep(blocks.length)
+  }
+
+  const uploadImage = async (blockId: string, file: File, field: string, sectionId?: string) => {
     setUploading(blockId)
     const formData = new FormData()
     formData.append('file', file)
     const res = await fetch('/api/upload', { method: 'POST', body: formData })
     const { url, error } = await res.json()
     if (error) { setMsg('Erro: ' + error); setUploading(null); return }
-    updateBlock(blockId, field, url)
+    if (sectionId) updateSection(blockId, sectionId, field, url)
+    else updateBlock(blockId, field, url)
     setUploading(null)
     setMsg('Imagem enviada! ✓')
     setTimeout(() => setMsg(''), 2000)
   }
 
-  // DRAG AND DROP
   const onDragStart = (idx: number) => setDragIdx(idx)
   const onDragOver = (e: React.DragEvent, idx: number) => { e.preventDefault(); setDragOver(idx) }
   const onDrop = (e: React.DragEvent, idx: number) => {
     e.preventDefault()
     if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setDragOver(null); return }
-    const newBlocks = [...blocks]
-    const [moved] = newBlocks.splice(dragIdx, 1)
-    newBlocks.splice(idx, 0, moved)
-    setBlocks(newBlocks)
-    setDragIdx(null)
-    setDragOver(null)
+    const nb = [...blocks]
+    const [moved] = nb.splice(dragIdx, 1)
+    nb.splice(idx, 0, moved)
+    setBlocks(nb)
+    setDragIdx(null); setDragOver(null)
   }
   const onDragEnd = () => { setDragIdx(null); setDragOver(null) }
 
@@ -192,9 +234,7 @@ export default function EditarQuizPage() {
   const setTab = (blockId: string, tab: string) => setActiveTab(prev => ({ ...prev, [blockId]: tab }))
 
   const previewBlock = blocks[previewStep]
-
   if (!quiz) return <div style={{ padding: '40px', textAlign: 'center', color: '#4e6a90', fontFamily: 'DM Sans, sans-serif' }}>Carregando...</div>
-
   const isActive = quiz.status === 'active'
 
   return (
@@ -214,15 +254,9 @@ export default function EditarQuizPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {msg && <span style={{ fontSize: '11px', color: '#22c55e' }}>{msg}</span>}
-            <button onClick={() => setShowThemes(!showThemes)} style={{ background: showThemes ? 'rgba(37,99,255,0.15)' : '#0a1120', border: `1px solid ${showThemes ? 'rgba(37,99,255,0.4)' : '#162035'}`, color: showThemes ? '#60a5fa' : '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
-              🎨 Tema
-            </button>
-            <button onClick={() => salvar()} disabled={salvando} style={{ background: '#0a1120', border: '1px solid #162035', color: '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
-              {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button onClick={publicar} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', boxShadow: '0 0 12px rgba(37,99,255,0.3)' }}>
-              {isActive ? '✓ Publicado' : '⚡ Publicar'}
-            </button>
+            <button onClick={() => setShowThemes(!showThemes)} style={{ background: showThemes ? 'rgba(37,99,255,0.15)' : '#0a1120', border: `1px solid ${showThemes ? 'rgba(37,99,255,0.4)' : '#162035'}`, color: showThemes ? '#60a5fa' : '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>🎨 Tema</button>
+            <button onClick={() => salvar()} disabled={salvando} style={{ background: '#0a1120', border: '1px solid #162035', color: '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Salvar'}</button>
+            <button onClick={publicar} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', boxShadow: '0 0 12px rgba(37,99,255,0.3)' }}>{isActive ? '✓ Publicado' : '⚡ Publicar'}</button>
           </div>
         </div>
 
@@ -232,9 +266,7 @@ export default function EditarQuizPage() {
             <div style={{ fontSize: '11px', color: '#60a5fa', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {typeof window !== 'undefined' ? window.location.origin : ''}/q/{quiz.slug}
             </div>
-            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/q/${quiz.slug}`); setMsg('Copiado!') }} style={{ background: 'rgba(37,99,255,0.12)', border: '1px solid rgba(37,99,255,0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', flexShrink: 0, marginLeft: '8px' }}>
-              Copiar
-            </button>
+            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/q/${quiz.slug}`); setMsg('Copiado!') }} style={{ background: 'rgba(37,99,255,0.12)', border: '1px solid rgba(37,99,255,0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', flexShrink: 0, marginLeft: '8px' }}>Copiar</button>
           </div>
         )}
 
@@ -244,7 +276,7 @@ export default function EditarQuizPage() {
             <div style={{ fontSize: '12px', fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '12px' }}>🎨 Tema do quiz</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginBottom: '12px' }}>
               {THEMES.map((t, i) => (
-                <div key={t.name} onClick={() => setSelectedTheme(i)} style={{ cursor: 'pointer', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${selectedTheme === i ? currentTheme.accent : '#162035'}`, transition: 'all 0.2s', boxShadow: selectedTheme === i ? `0 0 12px ${currentTheme.accent}40` : 'none' }}>
+                <div key={t.name} onClick={() => setSelectedTheme(i)} style={{ cursor: 'pointer', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${selectedTheme === i ? currentTheme.accent : '#162035'}`, transition: 'all 0.2s' }}>
                   <div style={{ background: t.bg, padding: '8px', height: '52px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ width: '55%', height: '5px', borderRadius: '2px', background: t.accent }}/>
                     <div style={{ width: '80%', height: '7px', borderRadius: '3px', background: t.accent, opacity: 0.7 }}/>
@@ -269,21 +301,18 @@ export default function EditarQuizPage() {
           </div>
         )}
 
-        {/* BOTÕES */}
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-          <button onClick={addManualBlock} style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
-            + Bloco manual
-          </button>
-          <button onClick={addVideoBlock} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
-            + Bloco de vídeo
-          </button>
+        {/* BOTÕES ADICIONAR */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          <button onClick={addManualBlock} style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Manual</button>
+          <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Bloco Rico</button>
+          <button onClick={addVideoBlock} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Vídeo</button>
         </div>
 
         <div style={{ fontSize: '10px', color: '#4e6a90', marginBottom: '10px' }}>
-          <span style={{ color: '#60a5fa' }}>⚡</span> {blocks.length} blocos · arraste ⠿ para reordenar · clique para editar
+          <span style={{ color: '#60a5fa' }}>⚡</span> {blocks.length} blocos · arraste ⠿ para reordenar
         </div>
 
-        {/* BLOCOS COM DRAG AND DROP */}
+        {/* BLOCOS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {blocks.map((block, idx) => {
             const colors = typeColors[block.type] ?? { bg: 'rgba(100,100,100,0.1)', text: '#888', border: 'rgba(100,100,100,0.2)' }
@@ -293,56 +322,41 @@ export default function EditarQuizPage() {
             const tab = getTab(block.id)
 
             return (
-              <div
-                key={block.id}
-                draggable
-                onDragStart={() => onDragStart(idx)}
-                onDragOver={e => onDragOver(e, idx)}
-                onDrop={e => onDrop(e, idx)}
-                onDragEnd={onDragEnd}
-                style={{
-                  background: '#0a1120',
-                  border: `1px solid ${isEditing ? 'rgba(37,99,255,0.4)' : isOver ? 'rgba(37,99,255,0.3)' : '#162035'}`,
-                  borderRadius: '10px', overflow: 'hidden', transition: 'all 0.2s',
-                  opacity: isDragging ? 0.4 : 1,
-                  transform: isOver && !isDragging ? 'translateY(-2px)' : 'none',
-                  boxShadow: isOver && !isDragging ? '0 4px 20px rgba(37,99,255,0.2)' : 'none',
-                }}
-              >
+              <div key={block.id} draggable onDragStart={() => onDragStart(idx)} onDragOver={e => onDragOver(e, idx)} onDrop={e => onDrop(e, idx)} onDragEnd={onDragEnd}
+                style={{ background: '#0a1120', border: `1px solid ${isEditing ? 'rgba(37,99,255,0.4)' : isOver ? 'rgba(37,99,255,0.3)' : '#162035'}`, borderRadius: '10px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, transform: isOver && !isDragging ? 'translateY(-2px)' : 'none' }}>
+
                 <div onClick={() => { setEditando(isEditing ? null : block.id); setPreviewStep(idx) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', cursor: 'pointer' }}>
-                  <span style={{ color: '#4e6a90', fontSize: '14px', cursor: 'grab', flexShrink: 0 }} title="Arraste para reordenar">⠿</span>
-                  <span style={{ fontSize: '8px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, flexShrink: 0 }}>
-                    {block.type}
-                  </span>
+                  <span style={{ color: '#4e6a90', fontSize: '14px', cursor: 'grab' }}>⠿</span>
+                  <span style={{ fontSize: '8px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, flexShrink: 0 }}>{block.type}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '9px', color: '#4e6a90', marginBottom: '1px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{block.label}</div>
-                    <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {renderTitle(block.title)}
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{renderTitle(block.title)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                     <span style={{ fontSize: '10px', color: '#4e6a90' }}>{idx + 1}</span>
-                    <button onClick={e => { e.stopPropagation(); deleteBlock(block.id) }} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px', padding: '2px 6px', borderRadius: '4px' }}>✕</button>
+                    <button onClick={e => { e.stopPropagation(); deleteBlock(block.id) }} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px', padding: '2px 6px' }}>✕</button>
                   </div>
                 </div>
 
                 {isEditing && (
                   <div style={{ borderTop: '1px solid #162035' }}>
-                    <div style={{ display: 'flex', gap: '2px', padding: '6px 12px 0', background: 'rgba(0,0,0,0.2)' }}>
-                      {['conteudo', 'estilo', 'imagem', 'video', 'prova'].map(t => (
+                    {/* TABS */}
+                    <div style={{ display: 'flex', gap: '2px', padding: '6px 12px 0', background: 'rgba(0,0,0,0.2)', flexWrap: 'wrap' }}>
+                      {['conteudo', 'estilo', 'imagem', 'video', 'prova', ...(block.type === 'rich' ? ['secoes'] : [])].map(t => (
                         <button key={t} onClick={() => setTab(block.id, t)} style={{ padding: '4px 9px', fontSize: '9px', fontWeight: '600', background: tab === t ? '#2563ff' : 'transparent', color: tab === t ? '#fff' : '#4e6a90', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {t === 'conteudo' ? 'Conteúdo' : t === 'estilo' ? 'Estilo' : t === 'imagem' ? 'Imagem' : t === 'video' ? 'Vídeo' : 'Prova'}
+                          {t === 'conteudo' ? 'Conteúdo' : t === 'estilo' ? 'Estilo' : t === 'imagem' ? 'Imagem' : t === 'video' ? 'Vídeo' : t === 'prova' ? 'Prova' : 'Seções'}
                         </button>
                       ))}
                     </div>
 
                     <div style={{ padding: '12px', background: 'rgba(0,0,0,0.3)' }}>
 
+                      {/* CONTEÚDO */}
                       {tab === 'conteudo' && (
                         <div>
                           <div style={sec}>
                             <div style={{ marginBottom: '10px' }}>
-                              <label style={lbl}>Título <span style={{ color: '#60a5fa', textTransform: 'none', letterSpacing: 0 }}>(*palavra* = brilho azul)</span></label>
+                              <label style={lbl}>Título <span style={{ color: '#60a5fa', textTransform: 'none', letterSpacing: 0 }}>(*palavra* = brilho)</span></label>
                               <textarea value={block.title} onChange={e => updateBlock(block.id, 'title', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/>
                             </div>
                             <div style={{ marginBottom: '10px' }}>
@@ -363,6 +377,7 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
+                      {/* ESTILO */}
                       {tab === 'estilo' && (
                         <div style={sec}>
                           <div style={{ marginBottom: '10px' }}>
@@ -395,24 +410,17 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
+                      {/* IMAGEM */}
                       {tab === 'imagem' && (
                         <div>
                           <div style={sec}>
-                            <label style={lbl}>Imagem (máx. 3MB · JPG, PNG, WebP, GIF)</label>
-                            {block.imageUrl && (
-                              <div style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035' }}>
-                                <img src={block.imageUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }}/>
-                              </div>
-                            )}
+                            <label style={lbl}>Imagem (máx. 3MB)</label>
+                            {block.imageUrl && <div style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035' }}><img src={block.imageUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }}/></div>}
                             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'imageUrl') }}/>
                             <button onClick={() => fileRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(37,99,255,0.1)', border: '1px solid rgba(37,99,255,0.2)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '7px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%' }}>
                               {uploading === block.id ? 'Enviando...' : block.imageUrl ? '🔄 Trocar' : '📷 Upload'}
                             </button>
-                            {block.imageUrl && (
-                              <button onClick={() => updateBlock(block.id, 'imageUrl', '')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%', marginTop: '6px' }}>
-                                ✕ Remover
-                              </button>
-                            )}
+                            {block.imageUrl && <button onClick={() => updateBlock(block.id, 'imageUrl', '')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%', marginTop: '6px' }}>✕ Remover</button>}
                           </div>
                           <div style={sec}>
                             <label style={lbl}>Texto alternativo</label>
@@ -421,6 +429,7 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
+                      {/* VÍDEO */}
                       {tab === 'video' && (
                         <div>
                           <div style={sec}>
@@ -459,7 +468,7 @@ export default function EditarQuizPage() {
                               </div>
                             </div>
                             {(block.videoLockSeconds ?? 0) > 0 && (
-                              <div>
+                              <div style={{ marginBottom: '10px' }}>
                                 <label style={lbl}>Quando liberar</label>
                                 <select value={block.videoLockAction || 'show_button'} onChange={e => updateBlock(block.id, 'videoLockAction', e.target.value)} style={{ ...inp }}>
                                   <option value="show_button">Mostrar botão Continuar</option>
@@ -467,48 +476,128 @@ export default function EditarQuizPage() {
                                 </select>
                               </div>
                             )}
-                            {block.videoProvider === 'youtube' && (
-                              <div style={{ marginTop: '8px', background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '7px', padding: '8px 10px', fontSize: '10px', color: '#60a5fa' }}>
-                                🛡️ Proteção YouTube ativa
+                            {block.videoProvider === 'youtube' && <div style={{ background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '7px', padding: '8px 10px', fontSize: '10px', color: '#60a5fa' }}>🛡️ Proteção YouTube ativa</div>}
+                          </div>
+                          <div style={sec}>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>📊 Analytics do vídeo</div>
+                            <div style={{ marginBottom: '10px' }}>
+                              <label style={lbl}>Duração total do vídeo (segundos)</label>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input type="number" min={0} value={block.videoDuration ?? 0} onChange={e => updateBlock(block.id, 'videoDuration', Number(e.target.value))} placeholder="Ex: 600 = 10min" style={{ ...inp, flex: 1 }}/>
+                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {(block.videoDuration ?? 0) > 0 ? `${Math.floor((block.videoDuration ?? 0) / 60)}min ${(block.videoDuration ?? 0) % 60}s` : ''}
+                                </div>
                               </div>
-                            )}
+                            </div>
+                            <div>
+                              <label style={lbl}>Segundo do pitch de vendas</label>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input type="number" min={0} value={block.videoPitchSecond ?? 0} onChange={e => updateBlock(block.id, 'videoPitchSecond', Number(e.target.value))} placeholder="Ex: 540 = 9min" style={{ ...inp, flex: 1 }}/>
+                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {(block.videoPitchSecond ?? 0) > 0 ? `${Math.floor((block.videoPitchSecond ?? 0) / 60)}min ${(block.videoPitchSecond ?? 0) % 60}s` : ''}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
 
+                      {/* PROVA SOCIAL */}
                       {tab === 'prova' && (
                         <div>
                           <div style={sec}>
                             <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '8px' }}>📸 Foto de perfil</div>
-                            {block.testimonialPhoto && (
-                              <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <img src={block.testimonialPhoto} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(37,99,255,0.3)' }}/>
-                                <span style={{ fontSize: '10px', color: '#4e6a90' }}>Foto carregada</span>
-                              </div>
-                            )}
+                            {block.testimonialPhoto && <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}><img src={block.testimonialPhoto} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(37,99,255,0.3)' }}/><span style={{ fontSize: '10px', color: '#4e6a90' }}>Foto carregada</span></div>}
                             <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'testimonialPhoto') }}/>
                             <button onClick={() => photoRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#86efac', fontSize: '10px', fontWeight: '600', padding: '7px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%' }}>
                               {uploading === block.id ? 'Enviando...' : '📷 Upload da foto'}
                             </button>
                           </div>
                           <div style={sec}>
-                            <div style={{ marginBottom: '8px' }}>
-                              <label style={lbl}>Nome</label>
-                              <input value={block.testimonialName || ''} onChange={e => updateBlock(block.id, 'testimonialName', e.target.value)} placeholder="João Silva" style={inp}/>
-                            </div>
-                            <div style={{ marginBottom: '8px' }}>
-                              <label style={lbl}>Cargo / Nicho</label>
-                              <input value={block.testimonialRole || ''} onChange={e => updateBlock(block.id, 'testimonialRole', e.target.value)} placeholder="Afiliado · Marketing Digital" style={inp}/>
-                            </div>
-                            <div>
-                              <label style={lbl}>Depoimento</label>
-                              <textarea value={block.testimonialText || ''} onChange={e => updateBlock(block.id, 'testimonialText', e.target.value)} rows={3} placeholder='"Incrível, nunca imaginei..."' style={{ ...inp, resize: 'none' }}/>
-                            </div>
+                            <div style={{ marginBottom: '8px' }}><label style={lbl}>Nome</label><input value={block.testimonialName || ''} onChange={e => updateBlock(block.id, 'testimonialName', e.target.value)} placeholder="João Silva" style={inp}/></div>
+                            <div style={{ marginBottom: '8px' }}><label style={lbl}>Cargo / Nicho</label><input value={block.testimonialRole || ''} onChange={e => updateBlock(block.id, 'testimonialRole', e.target.value)} placeholder="Afiliado · Marketing Digital" style={inp}/></div>
+                            <div><label style={lbl}>Depoimento</label><textarea value={block.testimonialText || ''} onChange={e => updateBlock(block.id, 'testimonialText', e.target.value)} rows={3} style={{ ...inp, resize: 'none' }}/></div>
                           </div>
                         </div>
                       )}
 
-                      <button onClick={() => { setEditando(null); salvar() }} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '7px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', marginTop: '4px' }}>
+                      {/* SEÇÕES DO BLOCO RICO */}
+                      {tab === 'secoes' && (
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#4e6a90', marginBottom: '10px' }}>
+                            Monte seções dentro do bloco — títulos, textos, listas, botões e imagens.
+                          </div>
+                          {(block.sections ?? []).map((section, sidx) => (
+                            <div key={section.id} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #1e3050', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase' }}>Seção {sidx + 1}</span>
+                                <button onClick={() => deleteSection(block.id, section.id)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                  <label style={lbl}>Badge (ex: RECOMENDADO)</label>
+                                  <input value={section.badge || ''} onChange={e => updateSection(block.id, section.id, 'badge', e.target.value)} placeholder="RECOMENDADO" style={inp}/>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                  <div>
+                                    <label style={lbl}>Número grande (01, 02...)</label>
+                                    <input value={section.number || ''} onChange={e => updateSection(block.id, section.id, 'number', e.target.value)} placeholder="01" style={inp}/>
+                                  </div>
+                                  <div>
+                                    <label style={lbl}>Label do número</label>
+                                    <input value={section.numberLabel || ''} onChange={e => updateSection(block.id, section.id, 'numberLabel', e.target.value)} placeholder="CAMINHO" style={inp}/>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label style={lbl}>Título da seção</label>
+                                  <input value={section.title || ''} onChange={e => updateSection(block.id, section.id, 'title', e.target.value)} placeholder="Título desta seção" style={inp}/>
+                                </div>
+                                <div>
+                                  <label style={lbl}>Texto / Descrição</label>
+                                  <textarea value={section.text || ''} onChange={e => updateSection(block.id, section.id, 'text', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/>
+                                </div>
+                                <div>
+                                  <label style={lbl}>Tipo de lista</label>
+                                  <select value={section.listType || 'none'} onChange={e => updateSection(block.id, section.id, 'listType', e.target.value)} style={{ ...inp }}>
+                                    <option value="none">Sem lista</option>
+                                    <option value="check">✓ Lista positiva (verde)</option>
+                                    <option value="cross">✕ Lista negativa (vermelho)</option>
+                                  </select>
+                                </div>
+                                {section.listType !== 'none' && (
+                                  <div>
+                                    <label style={lbl}>Itens da lista (um por linha)</label>
+                                    <textarea value={(section.items ?? []).join('\n')} onChange={e => updateSection(block.id, section.id, 'items', e.target.value.split('\n').filter(x => x.trim()))} rows={4} placeholder={'Item 1\nItem 2\nItem 3'} style={{ ...inp, resize: 'none' }}/>
+                                  </div>
+                                )}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                  <div>
+                                    <label style={lbl}>Botão (texto)</label>
+                                    <input value={section.buttonText || ''} onChange={e => updateSection(block.id, section.id, 'buttonText', e.target.value)} placeholder="Quero destravar →" style={inp}/>
+                                  </div>
+                                  <div>
+                                    <label style={lbl}>Link do botão</label>
+                                    <input value={section.buttonUrl || ''} onChange={e => updateSection(block.id, section.id, 'buttonUrl', e.target.value)} placeholder="https://..." style={inp}/>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label style={lbl}>Imagem da seção (máx. 3MB)</label>
+                                  {section.imageUrl && <div style={{ marginBottom: '6px', borderRadius: '6px', overflow: 'hidden' }}><img src={section.imageUrl} alt="" style={{ width: '100%', maxHeight: '100px', objectFit: 'cover', display: 'block' }}/></div>}
+                                  <input ref={sectionFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'imageUrl', section.id) }}/>
+                                  <button onClick={() => sectionFileRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(37,99,255,0.08)', border: '1px solid rgba(37,99,255,0.15)', color: '#60a5fa', fontSize: '10px', fontWeight: '600', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', width: '100%' }}>
+                                    {uploading === block.id ? 'Enviando...' : section.imageUrl ? '🔄 Trocar imagem' : '📷 Upload imagem'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => addSection(block.id)} style={{ width: '100%', background: 'rgba(16,185,129,0.08)', border: '1px dashed rgba(16,185,129,0.3)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '9px', borderRadius: '8px', cursor: 'pointer' }}>
+                            + Adicionar seção
+                          </button>
+                        </div>
+                      )}
+
+                      <button onClick={() => { setEditando(null); salvar() }} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '7px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', marginTop: '8px' }}>
                         Salvar bloco
                       </button>
                     </div>
@@ -520,9 +609,7 @@ export default function EditarQuizPage() {
         </div>
 
         <div style={{ marginTop: '16px' }}>
-          <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '11px', cursor: 'pointer' }}>
-            ← Voltar ao dashboard
-          </button>
+          <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '11px', cursor: 'pointer' }}>← Voltar ao dashboard</button>
         </div>
       </div>
 
@@ -540,9 +627,7 @@ export default function EditarQuizPage() {
         <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '14px' }}>
           <div style={{ width: '248px', background: currentTheme.bg, borderRadius: '18px', border: `2px solid ${currentTheme.border}`, overflow: 'hidden', boxShadow: '0 0 24px rgba(0,0,0,0.5)' }}>
             <div style={{ background: currentTheme.surface, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${currentTheme.border}` }}>
-              <span style={{ fontSize: '9px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: currentTheme.text }}>
-                Quiz<span style={{ color: currentTheme.accent2 }}>AI</span>
-              </span>
+              <span style={{ fontSize: '9px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: currentTheme.text }}>Quiz<span style={{ color: currentTheme.accent2 }}>AI</span></span>
               <div style={{ flex: 1, margin: '0 8px', height: '2px', background: currentTheme.border, borderRadius: '1px', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${((previewStep + 1) / Math.max(blocks.length, 1)) * 100}%`, background: `linear-gradient(90deg, ${currentTheme.accent}, ${currentTheme.accent2})`, borderRadius: '1px', transition: 'width 0.3s' }}/>
               </div>
@@ -555,30 +640,38 @@ export default function EditarQuizPage() {
                   <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: currentTheme.accent2 }}/>
                   {previewBlock.label}
                 </div>
+
                 <div style={{ background: currentTheme.surface, border: `1px solid ${currentTheme.border}`, borderRadius: '9px', padding: '10px', marginBottom: '8px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '70px', height: '70px', background: `radial-gradient(circle, ${currentTheme.accent}18 0%, transparent 70%)`, pointerEvents: 'none' }}/>
                   <div style={{ fontSize: '11px', fontWeight: '800', lineHeight: '1.3', color: previewBlock.titleColor || currentTheme.text, fontFamily: previewBlock.fontFamily || 'Syne, sans-serif', marginBottom: '5px' }}>
                     {previewBlock.title.replace(/\*([^*]+)\*/g, '$1')}
                   </div>
-                  {previewBlock.subtitle && (
-                    <div style={{ fontSize: '9px', color: currentTheme.muted, lineHeight: '1.4' }}>
-                      {previewBlock.subtitle.substring(0, 70)}{previewBlock.subtitle.length > 70 ? '...' : ''}
+                  {previewBlock.subtitle && <div style={{ fontSize: '9px', color: currentTheme.muted, lineHeight: '1.4' }}>{previewBlock.subtitle.substring(0, 70)}{previewBlock.subtitle.length > 70 ? '...' : ''}</div>}
+                  {previewBlock.imageUrl && <div style={{ marginTop: '7px', borderRadius: '5px', overflow: 'hidden' }}><img src={previewBlock.imageUrl} alt="" style={{ width: '100%', maxHeight: '70px', objectFit: 'cover', display: 'block' }}/></div>}
+
+                  {/* Preview das seções do bloco rico */}
+                  {previewBlock.type === 'rich' && (previewBlock.sections ?? []).slice(0, 2).map((s: RichSection) => (
+                    <div key={s.id} style={{ marginTop: '8px', padding: '7px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: `1px solid ${currentTheme.border}` }}>
+                      {s.badge && <div style={{ fontSize: '7px', fontWeight: '700', color: currentTheme.accent, textTransform: 'uppercase', marginBottom: '3px' }}>{s.badge}</div>}
+                      {s.number && <div style={{ fontSize: '16px', fontWeight: '800', color: currentTheme.muted, lineHeight: 1 }}>{s.number}</div>}
+                      {s.title && <div style={{ fontSize: '9px', fontWeight: '700', color: currentTheme.text, marginBottom: '3px' }}>{s.title}</div>}
+                      {s.items && s.items.slice(0, 2).map((item, i) => (
+                        <div key={i} style={{ fontSize: '8px', color: currentTheme.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ color: s.listType === 'check' ? '#22c55e' : '#f87171' }}>{s.listType === 'check' ? '✓' : '✕'}</span>
+                          {item.substring(0, 25)}
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  {previewBlock.imageUrl && (
-                    <div style={{ marginTop: '7px', borderRadius: '5px', overflow: 'hidden' }}>
-                      <img src={previewBlock.imageUrl} alt="" style={{ width: '100%', maxHeight: '70px', objectFit: 'cover', display: 'block' }}/>
-                    </div>
-                  )}
+                  ))}
                 </div>
+
                 {previewBlock.options?.slice(0, 3).map((opt: string, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${currentTheme.border}`, background: currentTheme.surface, marginBottom: '4px' }}>
-                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: `1px solid ${currentTheme.muted}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: currentTheme.muted }}>
-                      {String.fromCharCode(65 + i)}
-                    </div>
+                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: `1px solid ${currentTheme.muted}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: currentTheme.muted }}>{String.fromCharCode(65 + i)}</div>
                     <span style={{ fontSize: '8px', color: currentTheme.text }}>{opt.substring(0, 28)}{opt.length > 28 ? '...' : ''}</span>
                   </div>
                 ))}
+
                 <div style={{ width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontSize: '9px', fontWeight: '700', padding: '9px', borderRadius: '7px', textAlign: 'center', marginTop: '8px', fontFamily: 'Syne, sans-serif' }}>
                   {previewBlock.type === 'capture' ? 'Ver meu diagnóstico →' : previewBlock.type === 'offer' ? 'Quero meu plano agora →' : 'Continuar →'}
                 </div>
