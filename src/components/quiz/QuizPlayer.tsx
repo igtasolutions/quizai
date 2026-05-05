@@ -103,7 +103,7 @@ function VideoBlock({ block, theme, onUnlock }: { block: QuizBlock; theme: Theme
       if (!vid) return null
       return (
         <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-          <iframe src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
+          <iframe src={`https://www.youtube-nocookie.com/embed/${vid}?rel=0&modestbranding=1&autoplay=0`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '40px', zIndex: 10 }}/>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '60px', height: '40px', zIndex: 10 }}/>
         </div>
