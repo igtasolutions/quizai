@@ -30,10 +30,73 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const updates = await req.json()
+  const { action } = updates
 
+  // SALVAR — salva apenas no rascunho, não publica
+  if (action === 'save') {
+    const { blocks, theme, pixel_id, title } = updates
+    const { data, error } = await supabase
+      .from('quizzes')
+      .update({
+        blocks_draft: blocks,
+        theme_draft: theme,
+        ...(pixel_id !== undefined && { pixel_id }),
+        ...(title && { title }),
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Falha ao salvar' }, { status: 500 })
+    return NextResponse.json({ quiz: data, saved: true })
+  }
+
+  // PUBLICAR — copia rascunho para produção e ativa
+  if (action === 'publish') {
+    // Busca o rascunho atual
+    const { data: current } = await supabase
+      .from('quizzes')
+      .select('blocks_draft, theme_draft')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    const { data, error } = await supabase
+      .from('quizzes')
+      .update({
+        blocks: current?.blocks_draft,
+        theme: current?.theme_draft,
+        status: 'active',
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Falha ao publicar' }, { status: 500 })
+    return NextResponse.json({ quiz: data, published: true })
+  }
+
+  // DESPUBLICAR
+  if (action === 'unpublish') {
+    const { data, error } = await supabase
+      .from('quizzes')
+      .update({ status: 'draft' })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Falha ao despublicar' }, { status: 500 })
+    return NextResponse.json({ quiz: data, unpublished: true })
+  }
+
+  // FALLBACK — atualização genérica (compatibilidade)
+  const { action: _, ...rest } = updates
   const { data, error } = await supabase
     .from('quizzes')
-    .update(updates)
+    .update(rest)
     .eq('id', id)
     .eq('user_id', user.id)
     .select()

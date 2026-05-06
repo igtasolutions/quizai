@@ -29,26 +29,21 @@ interface Block {
   title: string
   subtitle: string
   options: string[]
-  // estilo título
   fontFamily?: string
   fontSize?: string
   titleColor?: string
   titleBold?: boolean
   titleItalic?: boolean
   titleUnderline?: boolean
-  // estilo subtítulo
   subtitleFontFamily?: string
   subtitleFontSize?: string
   subtitleColor?: string
   subtitleBold?: boolean
   subtitleItalic?: boolean
   subtitleUnderline?: boolean
-  // imagem principal
   imageUrl?: string
   imageAlt?: string
-  // galeria
   galleryImages?: string[]
-  // vídeo
   videoProvider?: string
   videoUrl?: string
   videoEmbed?: string
@@ -56,13 +51,11 @@ interface Block {
   videoLockAction?: string
   videoDuration?: number
   videoPitchSecond?: number
-  // prova social do bloco
   testimonialPhoto?: string
   testimonialName?: string
   testimonialRole?: string
   testimonialText?: string
   testimonialStars?: number
-  // seções
   sections?: RichSection[]
 }
 
@@ -127,9 +120,9 @@ function StyleControls({ prefix, block, updateBlock }: { prefix: string; block: 
       </select>
       <input type="color" value={(block as any)[colorKey] || '#eef2ff'} onChange={e => updateBlock(block.id, colorKey, e.target.value)} style={{ width: '28px', height: '28px', borderRadius: '5px', border: '1px solid #162035', background: 'none', cursor: 'pointer', padding: '1px' }}/>
       {[
-        { key: boldKey, label: 'B', style: { fontWeight: '800' } },
-        { key: italicKey, label: 'I', style: { fontStyle: 'italic' } },
-        { key: underlineKey, label: 'U', style: { textDecoration: 'underline' } },
+        { key: boldKey, label: 'B', style: { fontWeight: '800' as const } },
+        { key: italicKey, label: 'I', style: { fontStyle: 'italic' as const } },
+        { key: underlineKey, label: 'U', style: { textDecoration: 'underline' as const } },
       ].map(({ key, label, style }) => (
         <button key={key} onClick={() => updateBlock(block.id, key, !(block as any)[key])} style={{ width: '28px', height: '28px', borderRadius: '5px', border: `1px solid ${(block as any)[key] ? '#2563ff' : '#162035'}`, background: (block as any)[key] ? 'rgba(37,99,255,0.2)' : 'rgba(0,0,0,0.3)', color: (block as any)[key] ? '#60a5fa' : '#4e6a90', cursor: 'pointer', fontSize: '11px', ...style }}>
           {label}
@@ -147,7 +140,9 @@ export default function EditarQuizPage() {
   const [editando, setEditando] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
+  const [publicando, setPublicando] = useState(false)
   const [msg, setMsg] = useState('')
+  const [pixelId, setPixelId] = useState('')
   const [uploading, setUploading] = useState<string | null>(null)
   const [showThemes, setShowThemes] = useState(false)
   const [selectedTheme, setSelectedTheme] = useState(0)
@@ -170,11 +165,14 @@ export default function EditarQuizPage() {
         const q = quizzes?.find((x: any) => x.id === id)
         if (q) {
           setQuiz(q)
-          setBlocks(q.blocks ?? [])
-          if (q.theme) {
-            const idx = THEMES.findIndex(t => t.name === q.theme?.name)
+          // Carrega rascunho se existir, senão carrega publicado
+          setBlocks(q.blocks_draft ?? q.blocks ?? [])
+          if (q.pixel_id) setPixelId(q.pixel_id)
+          if (q.theme_draft || q.theme) {
+            const t = q.theme_draft ?? q.theme
+            const idx = THEMES.findIndex(th => th.name === t?.name)
             setSelectedTheme(idx >= 0 ? idx : 0)
-            setCustomTheme(q.theme)
+            setCustomTheme(t)
           }
         }
       })
@@ -182,22 +180,58 @@ export default function EditarQuizPage() {
 
   const currentTheme = selectedTheme === 6 ? customTheme : THEMES[selectedTheme]
 
-  const salvar = async (extraUpdates = {}) => {
+  const salvar = async () => {
     setSalvando(true)
     const tema = selectedTheme === 6 ? customTheme : THEMES[selectedTheme]
     const res = await fetch(`/api/quiz/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocks, theme: tema, ...extraUpdates }),
+      body: JSON.stringify({
+        action: 'save',
+        blocks,
+        theme: tema,
+        pixel_id: pixelId || null,
+      }),
     })
     setSalvando(false)
-    if (res.ok) { setMsg('Salvo! ✓'); setTimeout(() => setMsg(''), 2000) }
+    if (res.ok) { setMsg('Rascunho salvo ✓'); setTimeout(() => setMsg(''), 2000) }
     else setMsg('Erro ao salvar')
   }
 
   const publicar = async () => {
-    await salvar({ status: 'active' })
-    setQuiz((q: any) => ({ ...q, status: 'active' }))
+    setPublicando(true)
+    // Primeiro salva o rascunho
+    const tema = selectedTheme === 6 ? customTheme : THEMES[selectedTheme]
+    await fetch(`/api/quiz/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save', blocks, theme: tema, pixel_id: pixelId || null }),
+    })
+    // Depois publica
+    const res = await fetch(`/api/quiz/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'publish' }),
+    })
+    setPublicando(false)
+    if (res.ok) {
+      setQuiz((q: any) => ({ ...q, status: 'active' }))
+      setMsg('Publicado! ✅')
+      setTimeout(() => setMsg(''), 3000)
+    }
+  }
+
+  const despublicar = async () => {
+    const res = await fetch(`/api/quiz/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unpublish' }),
+    })
+    if (res.ok) {
+      setQuiz((q: any) => ({ ...q, status: 'draft' }))
+      setMsg('Despublicado')
+      setTimeout(() => setMsg(''), 2000)
+    }
   }
 
   const updateBlock = (blockId: string, field: string, value: any) => {
@@ -287,6 +321,7 @@ export default function EditarQuizPage() {
   const previewBlock = blocks[previewStep]
   if (!quiz) return <div style={{ padding: '40px', textAlign: 'center', color: '#4e6a90', fontFamily: 'DM Sans, sans-serif' }}>Carregando...</div>
   const isActive = quiz.status === 'active'
+  const hasDraft = true // sempre tem rascunho
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'DM Sans, sans-serif' }}>
@@ -300,20 +335,36 @@ export default function EditarQuizPage() {
             <h1 style={{ fontSize: '17px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>{quiz.title}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isActive ? '#22c55e' : '#4e6a90', boxShadow: isActive ? '0 0 6px #22c55e' : 'none' }}/>
-              <span style={{ fontSize: '11px', color: '#4e6a90' }}>{isActive ? 'Ativo' : 'Rascunho'}</span>
+              <span style={{ fontSize: '11px', color: isActive ? '#22c55e' : '#4e6a90' }}>{isActive ? 'Publicado' : 'Rascunho'}</span>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {msg && <span style={{ fontSize: '11px', color: '#22c55e' }}>{msg}</span>}
+            {msg && <span style={{ fontSize: '11px', color: msg.includes('Erro') ? '#f87171' : '#22c55e' }}>{msg}</span>}
             <button onClick={() => setShowThemes(!showThemes)} style={{ background: showThemes ? 'rgba(37,99,255,0.15)' : '#0a1120', border: `1px solid ${showThemes ? 'rgba(37,99,255,0.4)' : '#162035'}`, color: showThemes ? '#60a5fa' : '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>🎨 Tema</button>
-            <button onClick={() => salvar()} disabled={salvando} style={{ background: '#0a1120', border: '1px solid #162035', color: '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>{salvando ? 'Salvando...' : 'Salvar'}</button>
-            <button onClick={publicar} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', boxShadow: '0 0 12px rgba(37,99,255,0.3)' }}>{isActive ? '✓ Publicado' : '⚡ Publicar'}</button>
+            <button onClick={salvar} disabled={salvando} style={{ background: '#0a1120', border: '1px solid #162035', color: '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
+              {salvando ? 'Salvando...' : '💾 Salvar'}
+            </button>
+            {isActive ? (
+              <button onClick={despublicar} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#fca5a5', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
+                ✓ Publicado · Tirar do ar
+              </button>
+            ) : (
+              <button onClick={publicar} disabled={publicando} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '6px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', boxShadow: '0 0 12px rgba(37,99,255,0.3)' }}>
+                {publicando ? 'Publicando...' : '⚡ Publicar'}
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* PIXEL POR QUIZ */}
+        <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid #162035', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>🎯 Pixel FB</span>
+          <input value={pixelId} onChange={e => setPixelId(e.target.value)} placeholder="ID do Pixel do Facebook deste quiz" style={{ flex: 1, background: 'transparent', border: 'none', color: '#eef2ff', fontSize: '12px', outline: 'none', fontFamily: 'monospace' }}/>
         </div>
 
         {/* LINK */}
         {isActive && (
-          <div style={{ background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: '11px', color: '#60a5fa', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {typeof window !== 'undefined' ? window.location.origin : ''}/q/{quiz.slug}
             </div>
@@ -346,8 +397,8 @@ export default function EditarQuizPage() {
                 ))}
               </div>
             )}
-            <button onClick={() => salvar()} style={{ marginTop: '10px', width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '12px', padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
-              Aplicar tema e salvar
+            <button onClick={salvar} style={{ marginTop: '10px', width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '12px', padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>
+              Salvar tema no rascunho
             </button>
           </div>
         )}
@@ -391,7 +442,6 @@ export default function EditarQuizPage() {
 
                 {isEditing && (
                   <div style={{ borderTop: '1px solid #162035' }}>
-                    {/* TABS */}
                     <div style={{ display: 'flex', gap: '2px', padding: '6px 12px 0', background: 'rgba(0,0,0,0.2)', flexWrap: 'wrap' }}>
                       {['conteudo', 'imagens', 'video', 'prova', 'secoes'].map(t => (
                         <button key={t} onClick={() => setTab(block.id, t)} style={{ padding: '4px 9px', fontSize: '9px', fontWeight: '600', background: tab === t ? '#2563ff' : 'transparent', color: tab === t ? '#fff' : '#4e6a90', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -402,7 +452,6 @@ export default function EditarQuizPage() {
 
                     <div style={{ padding: '12px', background: 'rgba(0,0,0,0.3)' }}>
 
-                      {/* CONTEÚDO */}
                       {tab === 'conteudo' && (
                         <div>
                           <div style={sec}>
@@ -430,7 +479,6 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* IMAGENS */}
                       {tab === 'imagens' && (
                         <div>
                           <div style={sec}>
@@ -447,7 +495,7 @@ export default function EditarQuizPage() {
                             </button>
                           </div>
                           <div style={sec}>
-                            <label style={lbl}>Galeria de imagens (telas do produto, provas, etc)</label>
+                            <label style={lbl}>Galeria de imagens</label>
                             {(block.galleryImages ?? []).map((img, gi) => (
                               <div key={gi} style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035', position: 'relative' }}>
                                 <img src={img} alt="" style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', display: 'block' }}/>
@@ -462,7 +510,6 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* VÍDEO */}
                       {tab === 'video' && (
                         <div>
                           <div style={sec}>
@@ -531,7 +578,6 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* PROVA SOCIAL */}
                       {tab === 'prova' && (
                         <div>
                           <div style={sec}>
@@ -563,7 +609,6 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* SEÇÕES */}
                       {tab === 'secoes' && (
                         <div>
                           <div style={{ fontSize: '11px', color: '#4e6a90', marginBottom: '10px' }}>
@@ -648,16 +693,12 @@ export default function EditarQuizPage() {
                                     />
                                   </div>
                                 )}
-
-                                {/* BOTÃO OPCIONAL */}
                                 <div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                     <div onClick={() => updateSection(block.id, section.id, 'buttonEnabled', !section.buttonEnabled)} style={{ width: '32px', height: '18px', borderRadius: '9px', background: section.buttonEnabled ? '#2563ff' : '#162035', position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'all 0.2s' }}>
                                       <div style={{ position: 'absolute', top: '3px', left: section.buttonEnabled ? '15px' : '3px', width: '12px', height: '12px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }}/>
                                     </div>
-                                    <label style={{ ...lbl, marginBottom: 0, cursor: 'pointer' }} onClick={() => updateSection(block.id, section.id, 'buttonEnabled', !section.buttonEnabled)}>
-                                      Habilitar botão
-                                    </label>
+                                    <label style={{ ...lbl, marginBottom: 0, cursor: 'pointer' }} onClick={() => updateSection(block.id, section.id, 'buttonEnabled', !section.buttonEnabled)}>Habilitar botão</label>
                                   </div>
                                   {section.buttonEnabled && (
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -672,8 +713,6 @@ export default function EditarQuizPage() {
                                     </div>
                                   )}
                                 </div>
-
-                                {/* IMAGENS DA SEÇÃO */}
                                 <div>
                                   <label style={lbl}>Imagens da seção</label>
                                   {(section.images ?? []).map((img, imgIdx) => (
@@ -687,8 +726,6 @@ export default function EditarQuizPage() {
                                     {uploading === block.id ? 'Enviando...' : '+ Adicionar imagem'}
                                   </button>
                                 </div>
-
-                                {/* PROVA SOCIAL DA SEÇÃO */}
                                 <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', border: '1px solid #162035' }}>
                                   <label style={{ ...lbl, marginBottom: '8px' }}>Prova social da seção</label>
                                   <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
@@ -696,18 +733,9 @@ export default function EditarQuizPage() {
                                       <button key={star} onClick={() => updateSection(block.id, section.id, 'stars', star === section.stars ? 0 : star)} style={{ fontSize: '18px', background: 'none', border: 'none', cursor: 'pointer', color: star <= (section.stars ?? 0) ? '#fbbf24' : '#4e6a90' }}>★</button>
                                     ))}
                                   </div>
-                                  <div style={{ marginBottom: '6px' }}>
-                                    <label style={lbl}>Nome</label>
-                                    <input value={section.testimonialName || ''} onChange={e => updateSection(block.id, section.id, 'testimonialName', e.target.value)} placeholder="João Silva" style={inp}/>
-                                  </div>
-                                  <div style={{ marginBottom: '6px' }}>
-                                    <label style={lbl}>Cargo</label>
-                                    <input value={section.testimonialRole || ''} onChange={e => updateSection(block.id, section.id, 'testimonialRole', e.target.value)} placeholder="Afiliado" style={inp}/>
-                                  </div>
-                                  <div style={{ marginBottom: '6px' }}>
-                                    <label style={lbl}>Depoimento</label>
-                                    <textarea value={section.testimonialText || ''} onChange={e => updateSection(block.id, section.id, 'testimonialText', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/>
-                                  </div>
+                                  <div style={{ marginBottom: '6px' }}><label style={lbl}>Nome</label><input value={section.testimonialName || ''} onChange={e => updateSection(block.id, section.id, 'testimonialName', e.target.value)} placeholder="João Silva" style={inp}/></div>
+                                  <div style={{ marginBottom: '6px' }}><label style={lbl}>Cargo</label><input value={section.testimonialRole || ''} onChange={e => updateSection(block.id, section.id, 'testimonialRole', e.target.value)} placeholder="Afiliado" style={inp}/></div>
+                                  <div style={{ marginBottom: '6px' }}><label style={lbl}>Depoimento</label><textarea value={section.testimonialText || ''} onChange={e => updateSection(block.id, section.id, 'testimonialText', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/></div>
                                   <div>
                                     <label style={lbl}>Foto</label>
                                     {section.testimonialPhoto && (
