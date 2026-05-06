@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import QuizList from './QuizList'
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -142,46 +143,8 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* LISTA DE QUIZZES */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {quizzes?.map(q => (
-          <div key={q.id} style={{
-            background: '#0a1120', border: '1px solid #162035',
-            borderRadius: '12px', padding: '16px 20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{
-                width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
-                background: q.status === 'active' ? '#22c55e' : '#4e6a90',
-                boxShadow: q.status === 'active' ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
-              }}/>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#eef2ff', marginBottom: '3px' }}>
-                  {q.title}
-                </div>
-                <div style={{ fontSize: '11px', color: '#60a5fa', fontFamily: 'monospace' }}>
-                  quizai.app/q/{q.slug}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11px', color: '#4e6a90' }}>{q.total_views} views</div>
-                <div style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>{q.total_leads} leads</div>
-              </div>
-              <Link href={`/dashboard/quizzes/${q.id}`} style={{
-                background: 'rgba(37,99,255,0.1)', border: '1px solid rgba(37,99,255,0.2)',
-                color: '#60a5fa', fontSize: '11px', fontWeight: '600',
-                padding: '6px 14px', borderRadius: '6px', textDecoration: 'none',
-              }}>
-                Editar →
-              </Link>
-            </div>
-          </div>
-        ))}
+     <QuizList quizzes={quizzes ?? []} />
       </div>
-    </div>
+    
   )
 }
