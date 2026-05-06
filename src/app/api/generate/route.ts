@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,6 +31,22 @@ export async function POST(req: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+    // Verifica limite de IA
+    const { data: profile } = await supabaseAdmin
+      .from('users')
+      .select('ai_quiz_limit, ai_quizzes_used, plan')
+      .eq('id', user.id)
+      .single()
+
+    const aiUsed = profile?.ai_quizzes_used ?? 0
+    const aiLimit = profile?.ai_quiz_limit ?? 1
+
+    if (aiUsed >= aiLimit) {
+      return NextResponse.json({
+        error: `Limite de quizzes com IA atingido (${aiUsed}/${aiLimit}). Faça upgrade do seu plano para criar mais quizzes com IA.`
+      }, { status: 403 })
+    }
 
     const body = await req.json()
     const { product, config } = body
@@ -74,6 +96,13 @@ Tipos: headline, question, insight, social_proof, capture, offer, bridge`
       .trim()
 
     const parsed = JSON.parse(raw)
+
+    // Incrementa contador de IA usado
+    await supabaseAdmin
+      .from('users')
+      .update({ ai_quizzes_used: aiUsed + 1 })
+      .eq('id', user.id)
+
     return NextResponse.json({ blocks: parsed.blocks })
   } catch (error) {
     console.error('Erro ao gerar quiz:', error)

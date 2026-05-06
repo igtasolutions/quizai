@@ -58,8 +58,12 @@ export default function NovoQuizPage() {
       const res2 = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: product.nome, product, blocks, config, pixel_id: config.pixel_id || null }),
-      })
+        body: JSON.stringify({ 
+    title: product.nome, product, blocks, config, 
+    pixel_id: config.pixel_id || null,
+    is_ai_generated: true,
+  }),
+})
       const { quiz, error: error2 } = await res2.json()
       if (error2) throw new Error(error2)
 

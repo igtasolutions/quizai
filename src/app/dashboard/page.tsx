@@ -33,11 +33,18 @@ export default async function DashboardPage() {
   const totalLeads = quizzes?.reduce((a, q) => a + (q.total_leads || 0), 0) ?? 0
   const totalViews = quizzes?.reduce((a, q) => a + (q.total_views || 0), 0) ?? 0
   const totalAtivos = quizzes?.filter(q => q.status === 'active').length ?? 0
+  const { data: profile2 } = await supabase
+  .from('users').select('ai_quiz_limit, manual_quiz_limit, ai_quizzes_used, manual_quizzes_used').eq('id', user.id).single()
+
+  const aiRestantes = (profile2?.ai_quiz_limit ?? 1) - (profile2?.ai_quizzes_used ?? 0)
+  const manualRestantes = (profile2?.manual_quiz_limit ?? 2) - (profile2?.manual_quizzes_used ?? 0)
 
   const stats = [
     { label: 'Visualizações', value: totalViews.toLocaleString('pt-BR'), color: '#60a5fa', glow: 'rgba(96,165,250,0.15)' },
     { label: 'Leads capturados', value: totalLeads.toLocaleString('pt-BR'), color: '#22c55e', glow: 'rgba(34,197,94,0.15)' },
     { label: 'Quizzes ativos', value: totalAtivos, color: '#a78bfa', glow: 'rgba(167,139,250,0.15)' },
+    { label: 'Quizzes IA restantes', value: Math.max(0, aiRestantes), color: '#60a5fa', glow: 'rgba(96,165,250,0.15)' },
+    { label: 'Quizzes manuais restantes', value: Math.max(0, manualRestantes), color: '#fbbf24', glow: 'rgba(251,191,36,0.15)' },
   ]
 
   return (
@@ -57,7 +64,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* STATS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '32px' }}>
         {stats.map(s => (
           <div key={s.label} style={{
             background: '#0a1120', border: '1px solid #162035',
