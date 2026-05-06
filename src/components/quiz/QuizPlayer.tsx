@@ -74,6 +74,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const isVideoBlock = currentBlock?.type === 'video'
   const videoLockSeconds = isVideoBlock ? (currentBlock.videoLockSeconds ?? 0) : 0
   const needsLock = videoLockSeconds > 0
+  const hasVideoAnalytics = isVideoBlock && (currentBlock.videoDuration ?? 0) > 0
 
   const track = useCallback(async (event_type: string, step?: number, metadata?: object) => {
     await fetch('/api/track', {
@@ -126,9 +127,9 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     }
   }, [currentStep, totalSteps])
 
-  // Timer do vídeo
+    // Timer do vídeo — analytics + lock
   useEffect(() => {
-    if (!needsLock) return
+    if (!isVideoBlock) return
 
     const blockId = currentBlock?.id ?? ''
 
@@ -136,10 +137,10 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
       if (timerRef.current) return
       timerRef.current = setInterval(() => {
         countRef.current++
-        // Acumula segundos assistidos por bloco
+        // Sempre acumula para analytics
         videoSecondsRef.current[blockId] = (videoSecondsRef.current[blockId] ?? 0) + 1
-
-        if (countRef.current >= videoLockSeconds) {
+        // Lock — só libera se tiver configurado
+        if (needsLock && countRef.current >= videoLockSeconds) {
           clearInterval(timerRef.current)
           timerRef.current = null
           setShowContinue(true)
@@ -190,7 +191,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     }
 
     return () => stopTimer()
-  }, [needsLock, videoLockSeconds, currentStep])
+  }, [isVideoBlock, needsLock, videoLockSeconds, currentStep])
 
   const selectOption = async (option: string, index: number) => {
     setSelectedOption(option)
