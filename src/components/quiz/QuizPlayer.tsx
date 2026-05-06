@@ -89,16 +89,17 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
 
   // Salva segundos assistidos no banco
   const saveVideoSeconds = useCallback(async () => {
-    if (!leadIdRef.current || Object.keys(videoSecondsRef.current).length === 0) return
+    if (Object.keys(videoSecondsRef.current).length === 0) return
     await fetch(`/api/leads`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lead_id: leadIdRef.current,
+        session_id: sessionId,
         video_seconds_watched: videoSecondsRef.current,
       }),
     })
-  }, [])
+  }, [sessionId])
 
   useEffect(() => { track('quiz_start', 0) }, [])
 

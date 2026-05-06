@@ -51,17 +51,31 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { lead_id, video_seconds_watched } = body
+    const { lead_id, session_id, video_seconds_watched } = body
 
-    if (!lead_id) return NextResponse.json({ error: 'lead_id obrigatório' }, { status: 400 })
+    if (!lead_id && !session_id) {
+      return NextResponse.json({ error: 'lead_id ou session_id obrigatório' }, { status: 400 })
+    }
+
+    // Busca o lead pelo session_id se não tiver lead_id
+    let targetLeadId = lead_id
+    if (!targetLeadId && session_id) {
+      const { data } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('session_id', session_id)
+        .single()
+      targetLeadId = data?.id
+    }
+
+    if (!targetLeadId) return NextResponse.json({ ok: true }) // sem lead ainda, ignora
 
     const { error } = await supabase
       .from('leads')
       .update({ video_seconds_watched })
-      .eq('id', lead_id)
+      .eq('id', targetLeadId)
 
     if (error) throw error
-
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('Erro ao atualizar lead:', error)
