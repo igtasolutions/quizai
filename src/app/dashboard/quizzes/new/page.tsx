@@ -2,6 +2,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'rgba(0,0,0,0.4)', border: '1px solid #162035',
+  borderRadius: '10px', color: '#eef2ff', fontSize: '13px', padding: '11px 14px',
+  outline: 'none', boxSizing: 'border-box', fontFamily: 'DM Sans, sans-serif',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: '10px', color: '#4e6a90',
+  textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px',
+}
+
 const blocos = [
   { key: 'perguntas', label: 'Perguntas de dor', desc: 'Diagnóstico emocional' },
   { key: 'matematica', label: 'Matemática da inércia', desc: 'Custo de não agir' },
@@ -13,14 +24,14 @@ const blocos = [
   { key: 'oferta', label: 'Página de oferta', desc: 'Timer + stack de valor' },
 ]
 
-const inputStyle = { width: '100%', background: 'rgba(0,0,0,0.4)', border: '1px solid #162035', borderRadius: '10px', color: '#eef2ff', fontSize: '13px', padding: '11px 14px', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'DM Sans, sans-serif' }
-const labelStyle = { display: 'block' as const, fontSize: '10px', color: '#4e6a90', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '6px' }
-
 export default function NovoQuizPage() {
   const router = useRouter()
+  const [mode, setMode] = useState<'choose' | 'ai' | 'manual'>('choose')
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const [manualTitle, setManualTitle] = useState('')
+  const [creatingManual, setCreatingManual] = useState(false)
 
   const [product, setProduct] = useState({
     nome: '', nicho: '', preco: '', promessa: '',
@@ -43,6 +54,34 @@ export default function NovoQuizPage() {
     }))
   }
 
+  const criarManual = async () => {
+    if (!manualTitle.trim()) return
+    setCreatingManual(true)
+    const res = await fetch('/api/quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: manualTitle,
+        product: { nome: manualTitle },
+        blocks: [{
+          id: `rich-${Date.now()}`,
+          type: 'rich',
+          label: 'CONTEÚDO',
+          title: manualTitle,
+          subtitle: '',
+          options: [],
+          sections: [],
+          galleryImages: [],
+        }],
+        config: {},
+        is_ai_generated: false,
+      }),
+    })
+    const { quiz, error } = await res.json()
+    if (error) { setErro(error); setCreatingManual(false); return }
+    router.push(`/dashboard/quizzes/${quiz.id}`)
+  }
+
   const gerar = async () => {
     setLoading(true)
     setErro('')
@@ -58,12 +97,12 @@ export default function NovoQuizPage() {
       const res2 = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-    title: product.nome, product, blocks, config, 
-    pixel_id: config.pixel_id || null,
-    is_ai_generated: true,
-  }),
-})
+        body: JSON.stringify({
+          title: product.nome, product, blocks, config,
+          pixel_id: config.pixel_id || null,
+          is_ai_generated: true,
+        }),
+      })
       const { quiz, error: error2 } = await res2.json()
       if (error2) throw new Error(error2)
 
@@ -74,15 +113,121 @@ export default function NovoQuizPage() {
     }
   }
 
-  const cardStyle = { background: '#0a1120', border: '1px solid #162035', borderRadius: '14px', padding: '24px', marginBottom: '14px', position: 'relative' as const, overflow: 'hidden' as const }
+  const cardStyle: React.CSSProperties = {
+    background: '#0a1120', border: '1px solid #162035',
+    borderRadius: '14px', padding: '24px', marginBottom: '14px',
+    position: 'relative', overflow: 'hidden',
+  }
 
+  // TELA DE ESCOLHA
+  if (mode === 'choose') {
+    return (
+      <div style={{ padding: '40px 32px', maxWidth: '600px', margin: '0 auto', fontFamily: 'DM Sans, sans-serif' }}>
+        <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 8px', letterSpacing: '-0.5px' }}>
+            Criar novo quiz
+          </h1>
+          <p style={{ fontSize: '13px', color: '#4e6a90', margin: 0 }}>
+            Como você quer criar seu quiz?
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* IA */}
+          <div
+            onClick={() => setMode('ai')}
+            style={{ background: 'linear-gradient(135deg, rgba(37,99,255,0.1), rgba(37,99,255,0.05))', border: '1px solid rgba(37,99,255,0.3)', borderRadius: '16px', padding: '28px 20px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', position: 'relative', overflow: 'hidden' }}
+          >
+            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(37,99,255,0.15) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚡</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '8px' }}>
+              Criar com IA
+            </div>
+            <p style={{ fontSize: '12px', color: '#4e6a90', lineHeight: '1.5', margin: '0 0 16px' }}>
+              Descreva seu produto e a IA monta todos os blocos em 60 segundos com copy de alta conversão
+            </p>
+            <div style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '12px', padding: '8px 16px', borderRadius: '8px', display: 'inline-block', boxShadow: '0 0 16px rgba(37,99,255,0.3)' }}>
+              Usar crédito de IA →
+            </div>
+          </div>
+
+          {/* MANUAL */}
+          <div
+            onClick={() => setMode('manual')}
+            style={{ background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '16px', padding: '28px 20px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s', position: 'relative', overflow: 'hidden' }}
+          >
+            <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(251,191,36,0.1) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>✏️</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '8px' }}>
+              Criar manual
+            </div>
+            <p style={{ fontSize: '12px', color: '#4e6a90', lineHeight: '1.5', margin: '0 0 16px' }}>
+              Monte seu quiz do zero com o editor de blocos. Você tem total controle sobre o conteúdo
+            </p>
+            <div style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '12px', padding: '8px 16px', borderRadius: '8px', display: 'inline-block' }}>
+              Criar do zero →
+            </div>
+          </div>
+        </div>
+
+        <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '12px', cursor: 'pointer', marginTop: '24px', display: 'block', margin: '24px auto 0' }}>
+          ← Voltar ao dashboard
+        </button>
+      </div>
+    )
+  }
+
+  // TELA MANUAL
+  if (mode === 'manual') {
+    return (
+      <div style={{ padding: '40px 32px', maxWidth: '500px', margin: '0 auto', fontFamily: 'DM Sans, sans-serif' }}>
+        <button onClick={() => setMode('choose')} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '12px', cursor: 'pointer', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          ← Voltar
+        </button>
+        <h1 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
+          Criar quiz manual
+        </h1>
+        <p style={{ fontSize: '13px', color: '#4e6a90', margin: '0 0 28px' }}>
+          Dê um nome ao seu quiz e comece a montar os blocos
+        </p>
+
+        <div style={cardStyle}>
+          <label style={labelStyle}>Nome do quiz</label>
+          <input
+            value={manualTitle}
+            onChange={e => setManualTitle(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && criarManual()}
+            placeholder="Ex: Quiz de Vendas — Produto X"
+            style={inputStyle}
+            autoFocus
+          />
+          {erro && (
+            <div style={{ marginTop: '12px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#f87171' }}>
+              {erro}
+            </div>
+          )}
+          <button
+            onClick={criarManual}
+            disabled={creatingManual || !manualTitle.trim()}
+            style={{ marginTop: '16px', width: '100%', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '14px', padding: '13px', borderRadius: '10px', cursor: 'pointer', opacity: creatingManual || !manualTitle.trim() ? 0.6 : 1 }}
+          >
+            {creatingManual ? 'Criando...' : '✏️ Criar quiz manual →'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // TELA IA — steps
   return (
     <div style={{ padding: '28px 32px', maxWidth: '680px', margin: '0 auto', fontFamily: 'DM Sans, sans-serif' }}>
+      <button onClick={() => { setMode('choose'); setStep(1) }} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '12px', cursor: 'pointer', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        ← Voltar
+      </button>
 
-      {/* HEADER */}
-      <div style={{ marginBottom: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: '#eef2ff', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
-          Novo Quiz
+          Novo Quiz com IA
         </h1>
         <p style={{ fontSize: '13px', color: '#4e6a90', margin: 0 }}>
           Descreva seu produto e a IA monta tudo em 60 segundos
@@ -147,7 +292,7 @@ export default function NovoQuizPage() {
 
           <div style={cardStyle}>
             <div style={{ fontWeight: '700', fontSize: '14px', color: '#eef2ff', marginBottom: '6px', fontFamily: 'Syne, sans-serif' }}>Referência (opcional)</div>
-            <div style={{ fontSize: '12px', color: '#4e6a90', marginBottom: '12px' }}>Cole a URL de um quiz que você admira. A IA usa como base.</div>
+            <div style={{ fontSize: '12px', color: '#4e6a90', marginBottom: '12px' }}>Cole a URL de um quiz que você admira.</div>
             <input value={product.url_referencia} onChange={e => setProduct(p => ({...p, url_referencia: e.target.value}))} placeholder="https://quiz-referencia.com" style={inputStyle}/>
           </div>
 
@@ -164,9 +309,9 @@ export default function NovoQuizPage() {
             <div style={{ fontWeight: '700', fontSize: '14px', color: '#eef2ff', marginBottom: '14px', fontFamily: 'Syne, sans-serif' }}>Quantidade de etapas</div>
             <select value={config.etapas} onChange={e => setConfig(c => ({...c, etapas: e.target.value}))} style={{...inputStyle}}>
               <option value="auto">Automático — IA decide o ideal</option>
-              <option value="short">Curto — 5 a 8 etapas</option>
-              <option value="mid">Médio — 10 a 13 etapas</option>
-              <option value="full">Completo — 15 a 21 etapas</option>
+              <option value="short">Curto — 5 a 7 etapas</option>
+              <option value="mid">Médio — 8 a 10 etapas</option>
+              <option value="full">Completo — 11 a 14 etapas</option>
             </select>
           </div>
 
@@ -176,8 +321,8 @@ export default function NovoQuizPage() {
               {blocos.map(b => {
                 const ativo = config.blocos_ativos.includes(b.key)
                 return (
-                  <div key={b.key} onClick={() => toggleBloco(b.key)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '10px', border: `1px solid ${ativo ? 'rgba(37,99,255,0.4)' : '#162035'}`, background: ativo ? 'rgba(37,99,255,0.06)' : 'rgba(0,0,0,0.2)', cursor: 'pointer', transition: 'all 0.2s' }}>
-                    <div style={{ width: '32px', height: '18px', borderRadius: '9px', background: ativo ? '#2563ff' : '#162035', position: 'relative', flexShrink: 0, transition: 'all 0.2s' }}>
+                  <div key={b.key} onClick={() => toggleBloco(b.key)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', borderRadius: '10px', border: `1px solid ${ativo ? 'rgba(37,99,255,0.4)' : '#162035'}`, background: ativo ? 'rgba(37,99,255,0.06)' : 'rgba(0,0,0,0.2)', cursor: 'pointer' }}>
+                    <div style={{ width: '32px', height: '18px', borderRadius: '9px', background: ativo ? '#2563ff' : '#162035', position: 'relative', flexShrink: 0 }}>
                       <div style={{ position: 'absolute', top: '3px', left: ativo ? '15px' : '3px', width: '12px', height: '12px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }}/>
                     </div>
                     <div>
@@ -231,7 +376,7 @@ export default function NovoQuizPage() {
             A IA está montando todos os blocos com copy de alta conversão
           </div>
           <div style={{ width: '100%', height: '3px', background: '#162035', borderRadius: '2px', overflow: 'hidden', maxWidth: '300px', margin: '0 auto' }}>
-            <div style={{ height: '100%', background: 'linear-gradient(90deg, #2563ff, #60a5fa)', borderRadius: '2px', width: '70%', animation: 'pulse 1.5s infinite' }}/>
+            <div style={{ height: '100%', background: 'linear-gradient(90deg, #2563ff, #60a5fa)', borderRadius: '2px', width: '70%' }}/>
           </div>
           {erro && (
             <div style={{ marginTop: '20px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#f87171', maxWidth: '400px', margin: '20px auto 0' }}>
