@@ -250,7 +250,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
       if (!vid) return null
       return (
         <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}>
-          <iframe id={`yt-${b.id}`} src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"/>
+          <iframe id={`yt-${b.id}`} src={`https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&showinfo=0&enablejsapi=1&controls=0`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"/>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50px', zIndex: 10 }}/>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: '80px', height: '50px', zIndex: 10 }}/>
         </div>
