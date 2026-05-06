@@ -71,7 +71,7 @@ export default function AdminUserActions({ user }: { user: any }) {
       </div>
 
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: '32px', background: '#0d1829', border: '1px solid #162035', borderRadius: '10px', padding: '14px', zIndex: 100, minWidth: '220px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', right: '20px', background: '#0d1829', border: '1px solid #162035', borderRadius: '10px', padding: '14px', zIndex: 1000, minWidth: '220px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#eef2ff', marginBottom: '10px', fontFamily: 'Syne, sans-serif' }}>
             Ativar plano para {user.name || user.email}
           </div>
