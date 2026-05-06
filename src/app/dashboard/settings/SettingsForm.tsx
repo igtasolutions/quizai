@@ -69,9 +69,10 @@ export default function SettingsForm({ profile, email }: { profile: any; email: 
   }
 
   const PLAN_INFO: Record<string, { label: string; quizzes: string; price: string }> = {
-    starter: { label: 'Starter', quizzes: '1 quiz ativo', price: 'R$29/mês' },
-    pro:     { label: 'Pro',     quizzes: '5 quizzes',   price: 'R$47/mês' },
-    agency:  { label: 'Agency',  quizzes: 'Ilimitado',   price: 'R$97/mês' },
+    starter:  { label: 'Starter',  quizzes: '3 quizzes (1 IA + 2 manuais)',   price: 'R$37/mês' },
+    pro:      { label: 'Pro',      quizzes: '5 quizzes (3 IA + 2 manuais)',   price: 'R$67/mês' },
+    business: { label: 'Business', quizzes: '10 quizzes (todos com IA)',       price: 'R$97/mês' },
+    agency:   { label: 'Agency',   quizzes: '50 quizzes (35 IA + 15 manuais)', price: 'R$197/mês' },
   }
   const plan = PLAN_INFO[profile?.plan ?? 'starter']
 
