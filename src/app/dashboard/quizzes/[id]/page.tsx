@@ -9,11 +9,17 @@ interface RichSection {
   numberLabel?: string
   title?: string
   text?: string
-  listType?: 'check' | 'cross' | 'none'
+  listType?: string
   items?: string[]
+  buttonEnabled?: boolean
   buttonText?: string
   buttonUrl?: string
-  imageUrl?: string
+  images?: string[]
+  stars?: number
+  testimonialPhoto?: string
+  testimonialName?: string
+  testimonialRole?: string
+  testimonialText?: string
 }
 
 interface Block {
@@ -23,11 +29,26 @@ interface Block {
   title: string
   subtitle: string
   options: string[]
+  // estilo título
   fontFamily?: string
   fontSize?: string
   titleColor?: string
+  titleBold?: boolean
+  titleItalic?: boolean
+  titleUnderline?: boolean
+  // estilo subtítulo
+  subtitleFontFamily?: string
+  subtitleFontSize?: string
+  subtitleColor?: string
+  subtitleBold?: boolean
+  subtitleItalic?: boolean
+  subtitleUnderline?: boolean
+  // imagem principal
   imageUrl?: string
   imageAlt?: string
+  // galeria
+  galleryImages?: string[]
+  // vídeo
   videoProvider?: string
   videoUrl?: string
   videoEmbed?: string
@@ -35,10 +56,13 @@ interface Block {
   videoLockAction?: string
   videoDuration?: number
   videoPitchSecond?: number
+  // prova social do bloco
   testimonialPhoto?: string
   testimonialName?: string
   testimonialRole?: string
   testimonialText?: string
+  testimonialStars?: number
+  // seções
   sections?: RichSection[]
 }
 
@@ -75,6 +99,46 @@ const inp: React.CSSProperties = { width:'100%', background:'rgba(0,0,0,0.4)', b
 const lbl: React.CSSProperties = { display:'block', fontSize:'10px', color:'#4e6a90', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'5px' }
 const sec: React.CSSProperties = { background:'rgba(0,0,0,0.2)', border:'1px solid #162035', borderRadius:'10px', padding:'14px', marginBottom:'12px' }
 
+function StyleControls({ prefix, block, updateBlock }: { prefix: string; block: Block; updateBlock: (id: string, field: string, value: any) => void }) {
+  const fontKey = prefix === 'title' ? 'fontFamily' : 'subtitleFontFamily'
+  const sizeKey = prefix === 'title' ? 'fontSize' : 'subtitleFontSize'
+  const colorKey = prefix === 'title' ? 'titleColor' : 'subtitleColor'
+  const boldKey = prefix === 'title' ? 'titleBold' : 'subtitleBold'
+  const italicKey = prefix === 'title' ? 'titleItalic' : 'subtitleItalic'
+  const underlineKey = prefix === 'title' ? 'titleUnderline' : 'subtitleUnderline'
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
+      <select value={(block as any)[fontKey] || 'Syne, sans-serif'} onChange={e => updateBlock(block.id, fontKey, e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
+        <option value="Syne, sans-serif">Syne</option>
+        <option value="DM Sans, sans-serif">DM Sans</option>
+        <option value="Inter, sans-serif">Inter</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="monospace">Mono</option>
+      </select>
+      <select value={(block as any)[sizeKey] || (prefix === 'title' ? 'clamp(20px, 5vw, 28px)' : '14px')} onChange={e => updateBlock(block.id, sizeKey, e.target.value)} style={{ ...inp, width: 'auto', fontSize: '10px', padding: '4px 8px' }}>
+        <option value="12px">12px</option>
+        <option value="14px">14px</option>
+        <option value="16px">16px</option>
+        <option value="20px">20px</option>
+        <option value="clamp(20px, 5vw, 28px)">Grande</option>
+        <option value="clamp(24px, 6vw, 36px)">XL</option>
+        <option value="clamp(28px, 7vw, 44px)">XXL</option>
+      </select>
+      <input type="color" value={(block as any)[colorKey] || '#eef2ff'} onChange={e => updateBlock(block.id, colorKey, e.target.value)} style={{ width: '28px', height: '28px', borderRadius: '5px', border: '1px solid #162035', background: 'none', cursor: 'pointer', padding: '1px' }}/>
+      {[
+        { key: boldKey, label: 'B', style: { fontWeight: '800' } },
+        { key: italicKey, label: 'I', style: { fontStyle: 'italic' } },
+        { key: underlineKey, label: 'U', style: { textDecoration: 'underline' } },
+      ].map(({ key, label, style }) => (
+        <button key={key} onClick={() => updateBlock(block.id, key, !(block as any)[key])} style={{ width: '28px', height: '28px', borderRadius: '5px', border: `1px solid ${(block as any)[key] ? '#2563ff' : '#162035'}`, background: (block as any)[key] ? 'rgba(37,99,255,0.2)' : 'rgba(0,0,0,0.3)', color: (block as any)[key] ? '#60a5fa' : '#4e6a90', cursor: 'pointer', fontSize: '11px', ...style }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function EditarQuizPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -96,6 +160,8 @@ export default function EditarQuizPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const photoRef = useRef<HTMLInputElement>(null)
   const sectionFileRef = useRef<HTMLInputElement>(null)
+  const galleryFileRef = useRef<HTMLInputElement>(null)
+  const sectionPhotoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/quiz')
@@ -132,7 +198,6 @@ export default function EditarQuizPage() {
   const publicar = async () => {
     await salvar({ status: 'active' })
     setQuiz((q: any) => ({ ...q, status: 'active' }))
-    setMsg('Publicado! ✅')
   }
 
   const updateBlock = (blockId: string, field: string, value: any) => {
@@ -148,53 +213,26 @@ export default function EditarQuizPage() {
     if (editando === blockId) setEditando(null)
   }
 
-  // SEÇÕES DO BLOCO RICO
   const addSection = (blockId: string) => {
-    const newSection: RichSection = {
-      id: `sec-${Date.now()}`,
-      title: '',
-      text: '',
-      listType: 'none',
-      items: [],
-    }
+    const newSection: RichSection = { id: `sec-${Date.now()}`, title: '', text: '', listType: 'none', items: [], buttonEnabled: false, images: [], stars: 0 }
     setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, sections: [...(b.sections ?? []), newSection] } : b))
   }
 
   const updateSection = (blockId: string, sectionId: string, field: string, value: any) => {
     setBlocks(bs => bs.map(b => b.id === blockId ? {
-      ...b,
-      sections: (b.sections ?? []).map(s => s.id === sectionId ? { ...s, [field]: value } : s)
+      ...b, sections: (b.sections ?? []).map(s => s.id === sectionId ? { ...s, [field]: value } : s)
     } : b))
   }
 
   const deleteSection = (blockId: string, sectionId: string) => {
-    setBlocks(bs => bs.map(b => b.id === blockId ? {
-      ...b,
-      sections: (b.sections ?? []).filter(s => s.id !== sectionId)
-    } : b))
-  }
-
-  const addManualBlock = () => {
-    const nb: Block = { id: `manual-${Date.now()}`, type: 'manual', label: 'BLOCO MANUAL', title: 'Seu título aqui', subtitle: 'Escreva seu conteúdo aqui...', options: [] }
-    setBlocks(bs => [...bs, nb])
-    setEditando(nb.id)
-    setPreviewStep(blocks.length)
+    setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, sections: (b.sections ?? []).filter(s => s.id !== sectionId) } : b))
   }
 
   const addRichBlock = () => {
     const nb: Block = {
       id: `rich-${Date.now()}`, type: 'rich', label: 'BLOCO RICO', title: 'Título principal', subtitle: '', options: [],
-      sections: [
-        { id: `sec-${Date.now()}`, title: 'Seção 1', text: 'Descrição desta seção', listType: 'none', items: [] }
-      ]
+      titleBold: true, sections: [], galleryImages: [],
     }
-    setBlocks(bs => [...bs, nb])
-    setEditando(nb.id)
-    setPreviewStep(blocks.length)
-  }
-
-  const addVideoBlock = () => {
-    const nb: Block = { id: `video-${Date.now()}`, type: 'video', label: 'VÍDEO', title: 'Assista ao vídeo completo', subtitle: '', options: [], videoProvider: 'youtube', videoLockSeconds: 0, videoLockAction: 'show_button', videoDuration: 0, videoPitchSecond: 0 }
     setBlocks(bs => [...bs, nb])
     setEditando(nb.id)
     setPreviewStep(blocks.length)
@@ -207,8 +245,19 @@ export default function EditarQuizPage() {
     const res = await fetch('/api/upload', { method: 'POST', body: formData })
     const { url, error } = await res.json()
     if (error) { setMsg('Erro: ' + error); setUploading(null); return }
-    if (sectionId) updateSection(blockId, sectionId, field, url)
-    else updateBlock(blockId, field, url)
+    if (sectionId) {
+      if (field === 'images') {
+        setBlocks(bs => bs.map(b => b.id === blockId ? {
+          ...b, sections: (b.sections ?? []).map(s => s.id === sectionId ? { ...s, images: [...(s.images ?? []), url] } : s)
+        } : b))
+      } else {
+        updateSection(blockId, sectionId, field, url)
+      }
+    } else if (field === 'galleryImages') {
+      setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, galleryImages: [...(b.galleryImages ?? []), url] } : b))
+    } else {
+      updateBlock(blockId, field, url)
+    }
     setUploading(null)
     setMsg('Imagem enviada! ✓')
     setTimeout(() => setMsg(''), 2000)
@@ -303,11 +352,11 @@ export default function EditarQuizPage() {
           </div>
         )}
 
-        {/* BOTÕES ADICIONAR */}
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
-          <button onClick={addManualBlock} style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Manual</button>
-          <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Bloco Rico</button>
-          <button onClick={addVideoBlock} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>+ Vídeo</button>
+        {/* BOTÃO ADICIONAR */}
+        <div style={{ marginBottom: '12px' }}>
+          <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '7px 16px', borderRadius: '7px', cursor: 'pointer' }}>
+            + Adicionar bloco
+          </button>
         </div>
 
         <div style={{ fontSize: '10px', color: '#4e6a90', marginBottom: '10px' }}>
@@ -344,9 +393,9 @@ export default function EditarQuizPage() {
                   <div style={{ borderTop: '1px solid #162035' }}>
                     {/* TABS */}
                     <div style={{ display: 'flex', gap: '2px', padding: '6px 12px 0', background: 'rgba(0,0,0,0.2)', flexWrap: 'wrap' }}>
-                      {['conteudo', 'estilo', 'imagem', 'video', 'prova', ...(block.type === 'rich' ? ['secoes'] : [])].map(t => (
+                      {['conteudo', 'imagens', 'video', 'prova', 'secoes'].map(t => (
                         <button key={t} onClick={() => setTab(block.id, t)} style={{ padding: '4px 9px', fontSize: '9px', fontWeight: '600', background: tab === t ? '#2563ff' : 'transparent', color: tab === t ? '#fff' : '#4e6a90', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {t === 'conteudo' ? 'Conteúdo' : t === 'estilo' ? 'Estilo' : t === 'imagem' ? 'Imagem' : t === 'video' ? 'Vídeo' : t === 'prova' ? 'Prova' : 'Seções'}
+                          {t === 'conteudo' ? 'Conteúdo' : t === 'imagens' ? 'Imagens' : t === 'video' ? 'Vídeo' : t === 'prova' ? 'Prova Social' : 'Seções'}
                         </button>
                       ))}
                     </div>
@@ -357,13 +406,15 @@ export default function EditarQuizPage() {
                       {tab === 'conteudo' && (
                         <div>
                           <div style={sec}>
-                            <div style={{ marginBottom: '10px' }}>
+                            <div style={{ marginBottom: '12px' }}>
                               <label style={lbl}>Título <span style={{ color: '#60a5fa', textTransform: 'none', letterSpacing: 0 }}>(*palavra* = brilho)</span></label>
                               <textarea value={block.title} onChange={e => updateBlock(block.id, 'title', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/>
+                              <StyleControls prefix="title" block={block} updateBlock={updateBlock}/>
                             </div>
-                            <div style={{ marginBottom: '10px' }}>
+                            <div style={{ marginBottom: '12px' }}>
                               <label style={lbl}>Subtítulo / Texto</label>
                               <textarea value={block.subtitle} onChange={e => updateBlock(block.id, 'subtitle', e.target.value)} rows={3} style={{ ...inp, resize: 'none' }}/>
+                              <StyleControls prefix="subtitle" block={block} updateBlock={updateBlock}/>
                             </div>
                             <div>
                               <label style={lbl}>Label da etapa</label>
@@ -379,54 +430,34 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* ESTILO */}
-                      {tab === 'estilo' && (
-                        <div style={sec}>
-                          <div style={{ marginBottom: '10px' }}>
-                            <label style={lbl}>Fonte</label>
-                            <select value={block.fontFamily || 'Syne, sans-serif'} onChange={e => updateBlock(block.id, 'fontFamily', e.target.value)} style={{ ...inp }}>
-                              <option value="Syne, sans-serif">Syne (padrão)</option>
-                              <option value="DM Sans, sans-serif">DM Sans</option>
-                              <option value="Inter, sans-serif">Inter</option>
-                              <option value="Georgia, serif">Georgia</option>
-                              <option value="monospace">Monospace</option>
-                            </select>
-                          </div>
-                          <div style={{ marginBottom: '10px' }}>
-                            <label style={lbl}>Tamanho do título</label>
-                            <select value={block.fontSize || 'clamp(20px, 5vw, 28px)'} onChange={e => updateBlock(block.id, 'fontSize', e.target.value)} style={{ ...inp }}>
-                              <option value="16px">Pequeno (16px)</option>
-                              <option value="20px">Médio (20px)</option>
-                              <option value="clamp(20px, 5vw, 28px)">Grande (padrão)</option>
-                              <option value="clamp(24px, 6vw, 36px)">Muito grande</option>
-                              <option value="clamp(28px, 7vw, 44px)">Gigante</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label style={lbl}>Cor do título</label>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <input type="color" value={block.titleColor || '#eef2ff'} onChange={e => updateBlock(block.id, 'titleColor', e.target.value)} style={{ width: '36px', height: '30px', borderRadius: '5px', border: '1px solid #162035', background: 'none', cursor: 'pointer', padding: '2px' }}/>
-                              <input value={block.titleColor || '#eef2ff'} onChange={e => updateBlock(block.id, 'titleColor', e.target.value)} style={{ ...inp, flex: 1 }}/>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* IMAGEM */}
-                      {tab === 'imagem' && (
+                      {/* IMAGENS */}
+                      {tab === 'imagens' && (
                         <div>
                           <div style={sec}>
-                            <label style={lbl}>Imagem (máx. 3MB)</label>
-                            {block.imageUrl && <div style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035' }}><img src={block.imageUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }}/></div>}
+                            <label style={lbl}>Imagem principal</label>
+                            {block.imageUrl && (
+                              <div style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035', position: 'relative' }}>
+                                <img src={block.imageUrl} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', display: 'block' }}/>
+                                <button onClick={() => updateBlock(block.id, 'imageUrl', '')} style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', fontSize: '11px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer' }}>✕</button>
+                              </div>
+                            )}
                             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'imageUrl') }}/>
                             <button onClick={() => fileRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(37,99,255,0.1)', border: '1px solid rgba(37,99,255,0.2)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '7px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%' }}>
                               {uploading === block.id ? 'Enviando...' : block.imageUrl ? '🔄 Trocar' : '📷 Upload'}
                             </button>
-                            {block.imageUrl && <button onClick={() => updateBlock(block.id, 'imageUrl', '')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%', marginTop: '6px' }}>✕ Remover</button>}
                           </div>
                           <div style={sec}>
-                            <label style={lbl}>Texto alternativo</label>
-                            <input value={block.imageAlt || ''} onChange={e => updateBlock(block.id, 'imageAlt', e.target.value)} placeholder="Descrição..." style={inp}/>
+                            <label style={lbl}>Galeria de imagens (telas do produto, provas, etc)</label>
+                            {(block.galleryImages ?? []).map((img, gi) => (
+                              <div key={gi} style={{ marginBottom: '8px', borderRadius: '7px', overflow: 'hidden', border: '1px solid #162035', position: 'relative' }}>
+                                <img src={img} alt="" style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', display: 'block' }}/>
+                                <button onClick={() => updateBlock(block.id, 'galleryImages', (block.galleryImages ?? []).filter((_, i) => i !== gi))} style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', fontSize: '11px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer' }}>✕</button>
+                              </div>
+                            ))}
+                            <input ref={galleryFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'galleryImages') }}/>
+                            <button onClick={() => galleryFileRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '7px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%' }}>
+                              {uploading === block.id ? 'Enviando...' : '+ Adicionar imagem à galeria'}
+                            </button>
                           </div>
                         </div>
                       )}
@@ -483,21 +514,17 @@ export default function EditarQuizPage() {
                           <div style={sec}>
                             <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>📊 Analytics do vídeo</div>
                             <div style={{ marginBottom: '10px' }}>
-                              <label style={lbl}>Duração total do vídeo (segundos)</label>
+                              <label style={lbl}>Duração total (segundos)</label>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <input type="number" min={0} value={block.videoDuration ?? 0} onChange={e => updateBlock(block.id, 'videoDuration', Number(e.target.value))} placeholder="Ex: 600 = 10min" style={{ ...inp, flex: 1 }}/>
-                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                  {(block.videoDuration ?? 0) > 0 ? `${Math.floor((block.videoDuration ?? 0) / 60)}min ${(block.videoDuration ?? 0) % 60}s` : ''}
-                                </div>
+                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0 }}>{(block.videoDuration ?? 0) > 0 ? `${Math.floor((block.videoDuration ?? 0) / 60)}min` : ''}</div>
                               </div>
                             </div>
                             <div>
-                              <label style={lbl}>Segundo do pitch de vendas</label>
+                              <label style={lbl}>Segundo do pitch</label>
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <input type="number" min={0} value={block.videoPitchSecond ?? 0} onChange={e => updateBlock(block.id, 'videoPitchSecond', Number(e.target.value))} placeholder="Ex: 540 = 9min" style={{ ...inp, flex: 1 }}/>
-                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                  {(block.videoPitchSecond ?? 0) > 0 ? `${Math.floor((block.videoPitchSecond ?? 0) / 60)}min ${(block.videoPitchSecond ?? 0) % 60}s` : ''}
-                                </div>
+                                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0 }}>{(block.videoPitchSecond ?? 0) > 0 ? `${Math.floor((block.videoPitchSecond ?? 0) / 60)}min` : ''}</div>
                               </div>
                             </div>
                           </div>
@@ -508,8 +535,21 @@ export default function EditarQuizPage() {
                       {tab === 'prova' && (
                         <div>
                           <div style={sec}>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>⭐ Avaliação</div>
+                            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                              {[1,2,3,4,5].map(star => (
+                                <button key={star} onClick={() => updateBlock(block.id, 'testimonialStars', star === block.testimonialStars ? 0 : star)} style={{ fontSize: '20px', background: 'none', border: 'none', cursor: 'pointer', color: star <= (block.testimonialStars ?? 0) ? '#fbbf24' : '#4e6a90' }}>★</button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={sec}>
                             <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '8px' }}>📸 Foto de perfil</div>
-                            {block.testimonialPhoto && <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}><img src={block.testimonialPhoto} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(37,99,255,0.3)' }}/><span style={{ fontSize: '10px', color: '#4e6a90' }}>Foto carregada</span></div>}
+                            {block.testimonialPhoto && (
+                              <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <img src={block.testimonialPhoto} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(37,99,255,0.3)' }}/>
+                                <button onClick={() => updateBlock(block.id, 'testimonialPhoto', '')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '10px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer' }}>✕ Remover</button>
+                              </div>
+                            )}
                             <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'testimonialPhoto') }}/>
                             <button onClick={() => photoRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#86efac', fontSize: '10px', fontWeight: '600', padding: '7px 12px', borderRadius: '7px', cursor: 'pointer', width: '100%' }}>
                               {uploading === block.id ? 'Enviando...' : '📷 Upload da foto'}
@@ -523,50 +563,48 @@ export default function EditarQuizPage() {
                         </div>
                       )}
 
-                      {/* SEÇÕES DO BLOCO RICO */}
+                      {/* SEÇÕES */}
                       {tab === 'secoes' && (
                         <div>
                           <div style={{ fontSize: '11px', color: '#4e6a90', marginBottom: '10px' }}>
                             Monte seções dentro do bloco — títulos, textos, listas, botões e imagens.
                           </div>
                           {(block.sections ?? []).map((section, sidx) => (
-  <div
-    key={section.id}
-    draggable
-    onDragStart={() => setSectionDrag({ blockId: block.id, fromIdx: sidx })}
-    onDragOver={e => { e.preventDefault(); setSectionDragOver({ blockId: block.id, toIdx: sidx }) }}
-    onDrop={e => {
-      e.preventDefault()
-      if (!sectionDrag || sectionDrag.blockId !== block.id) return
-      const { fromIdx } = sectionDrag
-      const toIdx = sidx
-      if (fromIdx === toIdx) { setSectionDrag(null); setSectionDragOver(null); return }
-      setBlocks(bs => bs.map(b => {
-        if (b.id !== block.id) return b
-        const secs = [...(b.sections ?? [])]
-        const [moved] = secs.splice(fromIdx, 1)
-        secs.splice(toIdx, 0, moved)
-        return { ...b, sections: secs }
-      }))
-      setSectionDrag(null)
-      setSectionDragOver(null)
-    }}
-    onDragEnd={() => { setSectionDrag(null); setSectionDragOver(null) }}
-    style={{
-      background: 'rgba(0,0,0,0.3)',
-      border: `1px solid ${sectionDragOver?.blockId === block.id && sectionDragOver?.toIdx === sidx ? 'rgba(37,99,255,0.4)' : '#1e3050'}`,
-      borderRadius: '10px', padding: '12px', marginBottom: '10px',
-      opacity: sectionDrag?.blockId === block.id && sectionDrag?.fromIdx === sidx ? 0.4 : 1,
-      transition: 'all 0.2s',
-    }}
-  >
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: '#4e6a90', fontSize: '14px', cursor: 'grab' }}>⠿</span>
-        <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase' }}>Seção {sidx + 1}</span>
-      </div>
-      <button onClick={() => deleteSection(block.id, section.id)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-    </div>
+                            <div
+                              key={section.id}
+                              draggable
+                              onDragStart={() => setSectionDrag({ blockId: block.id, fromIdx: sidx })}
+                              onDragOver={e => { e.preventDefault(); setSectionDragOver({ blockId: block.id, toIdx: sidx }) }}
+                              onDrop={e => {
+                                e.preventDefault()
+                                if (!sectionDrag || sectionDrag.blockId !== block.id) return
+                                const { fromIdx } = sectionDrag
+                                const toIdx = sidx
+                                if (fromIdx === toIdx) { setSectionDrag(null); setSectionDragOver(null); return }
+                                setBlocks(bs => bs.map(b => {
+                                  if (b.id !== block.id) return b
+                                  const secs = [...(b.sections ?? [])]
+                                  const [moved] = secs.splice(fromIdx, 1)
+                                  secs.splice(toIdx, 0, moved)
+                                  return { ...b, sections: secs }
+                                }))
+                                setSectionDrag(null); setSectionDragOver(null)
+                              }}
+                              onDragEnd={() => { setSectionDrag(null); setSectionDragOver(null) }}
+                              style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: `1px solid ${sectionDragOver?.blockId === block.id && sectionDragOver?.toIdx === sidx ? 'rgba(37,99,255,0.4)' : '#1e3050'}`,
+                                borderRadius: '10px', padding: '12px', marginBottom: '10px',
+                                opacity: sectionDrag?.blockId === block.id && sectionDrag?.fromIdx === sidx ? 0.4 : 1,
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ color: '#4e6a90', fontSize: '14px', cursor: 'grab' }}>⠿</span>
+                                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase' }}>Seção {sidx + 1}</span>
+                                </div>
+                                <button onClick={() => deleteSection(block.id, section.id)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                              </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <div>
                                   <label style={lbl}>Badge (ex: RECOMENDADO)</label>
@@ -574,7 +612,7 @@ export default function EditarQuizPage() {
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                   <div>
-                                    <label style={lbl}>Número grande (01, 02...)</label>
+                                    <label style={lbl}>Número grande</label>
                                     <input value={section.number || ''} onChange={e => updateSection(block.id, section.id, 'number', e.target.value)} placeholder="01" style={inp}/>
                                   </div>
                                   <div>
@@ -600,27 +638,89 @@ export default function EditarQuizPage() {
                                 </div>
                                 {section.listType !== 'none' && (
                                   <div>
-                                    <label style={lbl}>Itens da lista (um por linha)</label>
-                                    <textarea value={(section.items ?? []).join('\n')} onChange={e => updateSection(block.id, section.id, 'items', e.target.value.split('\n').filter(x => x.trim()))} rows={4} placeholder={'Item 1\nItem 2\nItem 3'} style={{ ...inp, resize: 'none' }}/>
+                                    <label style={lbl}>Itens (Enter = nova linha)</label>
+                                    <textarea
+                                      value={(section.items ?? []).join('\n')}
+                                      onChange={e => updateSection(block.id, section.id, 'items', e.target.value.split('\n'))}
+                                      rows={Math.max(3, (section.items ?? []).length + 1)}
+                                      placeholder={'Item 1\nItem 2\nItem 3'}
+                                      style={{ ...inp, resize: 'vertical' }}
+                                    />
                                   </div>
                                 )}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                  <div>
-                                    <label style={lbl}>Botão (texto)</label>
-                                    <input value={section.buttonText || ''} onChange={e => updateSection(block.id, section.id, 'buttonText', e.target.value)} placeholder="Quero destravar →" style={inp}/>
-                                  </div>
-                                  <div>
-                                    <label style={lbl}>Link do botão</label>
-                                    <input value={section.buttonUrl || ''} onChange={e => updateSection(block.id, section.id, 'buttonUrl', e.target.value)} placeholder="https://..." style={inp}/>
-                                  </div>
-                                </div>
+
+                                {/* BOTÃO OPCIONAL */}
                                 <div>
-                                  <label style={lbl}>Imagem da seção (máx. 3MB)</label>
-                                  {section.imageUrl && <div style={{ marginBottom: '6px', borderRadius: '6px', overflow: 'hidden' }}><img src={section.imageUrl} alt="" style={{ width: '100%', maxHeight: '100px', objectFit: 'cover', display: 'block' }}/></div>}
-                                  <input ref={sectionFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'imageUrl', section.id) }}/>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                    <div onClick={() => updateSection(block.id, section.id, 'buttonEnabled', !section.buttonEnabled)} style={{ width: '32px', height: '18px', borderRadius: '9px', background: section.buttonEnabled ? '#2563ff' : '#162035', position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'all 0.2s' }}>
+                                      <div style={{ position: 'absolute', top: '3px', left: section.buttonEnabled ? '15px' : '3px', width: '12px', height: '12px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }}/>
+                                    </div>
+                                    <label style={{ ...lbl, marginBottom: 0, cursor: 'pointer' }} onClick={() => updateSection(block.id, section.id, 'buttonEnabled', !section.buttonEnabled)}>
+                                      Habilitar botão
+                                    </label>
+                                  </div>
+                                  {section.buttonEnabled && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                      <div>
+                                        <label style={lbl}>Texto do botão</label>
+                                        <input value={section.buttonText || ''} onChange={e => updateSection(block.id, section.id, 'buttonText', e.target.value)} placeholder="Quero destravar →" style={inp}/>
+                                      </div>
+                                      <div>
+                                        <label style={lbl}>Link do botão</label>
+                                        <input value={section.buttonUrl || ''} onChange={e => updateSection(block.id, section.id, 'buttonUrl', e.target.value)} placeholder="https://..." style={inp}/>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* IMAGENS DA SEÇÃO */}
+                                <div>
+                                  <label style={lbl}>Imagens da seção</label>
+                                  {(section.images ?? []).map((img, imgIdx) => (
+                                    <div key={imgIdx} style={{ marginBottom: '6px', borderRadius: '6px', overflow: 'hidden', position: 'relative', border: '1px solid #162035' }}>
+                                      <img src={img} alt="" style={{ width: '100%', maxHeight: '100px', objectFit: 'cover', display: 'block' }}/>
+                                      <button onClick={() => updateSection(block.id, section.id, 'images', (section.images ?? []).filter((_, i) => i !== imgIdx))} style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', cursor: 'pointer' }}>✕</button>
+                                    </div>
+                                  ))}
+                                  <input ref={sectionFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'images', section.id) }}/>
                                   <button onClick={() => sectionFileRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(37,99,255,0.08)', border: '1px solid rgba(37,99,255,0.15)', color: '#60a5fa', fontSize: '10px', fontWeight: '600', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', width: '100%' }}>
-                                    {uploading === block.id ? 'Enviando...' : section.imageUrl ? '🔄 Trocar imagem' : '📷 Upload imagem'}
+                                    {uploading === block.id ? 'Enviando...' : '+ Adicionar imagem'}
                                   </button>
+                                </div>
+
+                                {/* PROVA SOCIAL DA SEÇÃO */}
+                                <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', border: '1px solid #162035' }}>
+                                  <label style={{ ...lbl, marginBottom: '8px' }}>Prova social da seção</label>
+                                  <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                                    {[1,2,3,4,5].map(star => (
+                                      <button key={star} onClick={() => updateSection(block.id, section.id, 'stars', star === section.stars ? 0 : star)} style={{ fontSize: '18px', background: 'none', border: 'none', cursor: 'pointer', color: star <= (section.stars ?? 0) ? '#fbbf24' : '#4e6a90' }}>★</button>
+                                    ))}
+                                  </div>
+                                  <div style={{ marginBottom: '6px' }}>
+                                    <label style={lbl}>Nome</label>
+                                    <input value={section.testimonialName || ''} onChange={e => updateSection(block.id, section.id, 'testimonialName', e.target.value)} placeholder="João Silva" style={inp}/>
+                                  </div>
+                                  <div style={{ marginBottom: '6px' }}>
+                                    <label style={lbl}>Cargo</label>
+                                    <input value={section.testimonialRole || ''} onChange={e => updateSection(block.id, section.id, 'testimonialRole', e.target.value)} placeholder="Afiliado" style={inp}/>
+                                  </div>
+                                  <div style={{ marginBottom: '6px' }}>
+                                    <label style={lbl}>Depoimento</label>
+                                    <textarea value={section.testimonialText || ''} onChange={e => updateSection(block.id, section.id, 'testimonialText', e.target.value)} rows={2} style={{ ...inp, resize: 'none' }}/>
+                                  </div>
+                                  <div>
+                                    <label style={lbl}>Foto</label>
+                                    {section.testimonialPhoto && (
+                                      <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <img src={section.testimonialPhoto} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}/>
+                                        <button onClick={() => updateSection(block.id, section.id, 'testimonialPhoto', '')} style={{ background: 'none', border: 'none', color: '#fca5a5', fontSize: '10px', cursor: 'pointer' }}>✕ remover</button>
+                                      </div>
+                                    )}
+                                    <input ref={sectionPhotoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(block.id, f, 'testimonialPhoto', section.id) }}/>
+                                    <button onClick={() => sectionPhotoRef.current?.click()} disabled={uploading === block.id} style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#86efac', fontSize: '10px', fontWeight: '600', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', width: '100%' }}>
+                                      📷 Upload foto
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -670,44 +770,28 @@ export default function EditarQuizPage() {
 
             {previewBlock && (
               <div style={{ padding: '14px' }}>
-                <div style={{ fontSize: '8px', letterSpacing: '1px', color: currentTheme.accent2, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: currentTheme.accent2 }}/>
-                  {previewBlock.label}
-                </div>
-
-                <div style={{ background: currentTheme.surface, border: `1px solid ${currentTheme.border}`, borderRadius: '9px', padding: '10px', marginBottom: '8px', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: '-15px', right: '-15px', width: '70px', height: '70px', background: `radial-gradient(circle, ${currentTheme.accent}18 0%, transparent 70%)`, pointerEvents: 'none' }}/>
-                  <div style={{ fontSize: '11px', fontWeight: '800', lineHeight: '1.3', color: previewBlock.titleColor || currentTheme.text, fontFamily: previewBlock.fontFamily || 'Syne, sans-serif', marginBottom: '5px' }}>
+                <div style={{ fontSize: '8px', letterSpacing: '1px', color: currentTheme.accent2, textTransform: 'uppercase', marginBottom: '8px' }}>{previewBlock.label}</div>
+                <div style={{ background: currentTheme.surface, border: `1px solid ${currentTheme.border}`, borderRadius: '9px', padding: '10px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '800', color: previewBlock.titleColor || currentTheme.text, fontFamily: previewBlock.fontFamily || 'Syne, sans-serif', marginBottom: '5px' }}>
                     {previewBlock.title.replace(/\*([^*]+)\*/g, '$1')}
                   </div>
-                  {previewBlock.subtitle && <div style={{ fontSize: '9px', color: currentTheme.muted, lineHeight: '1.4' }}>{previewBlock.subtitle.substring(0, 70)}{previewBlock.subtitle.length > 70 ? '...' : ''}</div>}
+                  {previewBlock.subtitle && <div style={{ fontSize: '9px', color: currentTheme.muted }}>{previewBlock.subtitle.substring(0, 60)}...</div>}
                   {previewBlock.imageUrl && <div style={{ marginTop: '7px', borderRadius: '5px', overflow: 'hidden' }}><img src={previewBlock.imageUrl} alt="" style={{ width: '100%', maxHeight: '70px', objectFit: 'cover', display: 'block' }}/></div>}
-
-                  {/* Preview das seções do bloco rico */}
-                  {previewBlock.type === 'rich' && (previewBlock.sections ?? []).slice(0, 2).map((s: RichSection) => (
-                    <div key={s.id} style={{ marginTop: '8px', padding: '7px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: `1px solid ${currentTheme.border}` }}>
-                      {s.badge && <div style={{ fontSize: '7px', fontWeight: '700', color: currentTheme.accent, textTransform: 'uppercase', marginBottom: '3px' }}>{s.badge}</div>}
-                      {s.number && <div style={{ fontSize: '16px', fontWeight: '800', color: currentTheme.muted, lineHeight: 1 }}>{s.number}</div>}
-                      {s.title && <div style={{ fontSize: '9px', fontWeight: '700', color: currentTheme.text, marginBottom: '3px' }}>{s.title}</div>}
-                      {s.items && s.items.slice(0, 2).map((item, i) => (
-                        <div key={i} style={{ fontSize: '8px', color: currentTheme.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ color: s.listType === 'check' ? '#22c55e' : '#f87171' }}>{s.listType === 'check' ? '✓' : '✕'}</span>
-                          {item.substring(0, 25)}
-                        </div>
-                      ))}
+                  {previewBlock.sections?.slice(0, 2).map((s: RichSection) => (
+                    <div key={s.id} style={{ marginTop: '6px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '5px' }}>
+                      {s.badge && <div style={{ fontSize: '7px', color: currentTheme.accent, fontWeight: '700' }}>{s.badge}</div>}
+                      {s.title && <div style={{ fontSize: '9px', fontWeight: '700', color: currentTheme.text }}>{s.title}</div>}
                     </div>
                   ))}
                 </div>
-
-                {previewBlock.options?.slice(0, 3).map((opt: string, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${currentTheme.border}`, background: currentTheme.surface, marginBottom: '4px' }}>
-                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', border: `1px solid ${currentTheme.muted}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: currentTheme.muted }}>{String.fromCharCode(65 + i)}</div>
-                    <span style={{ fontSize: '8px', color: currentTheme.text }}>{opt.substring(0, 28)}{opt.length > 28 ? '...' : ''}</span>
+                {previewBlock.options?.slice(0, 2).map((opt: string, i: number) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 7px', borderRadius: '5px', border: `1px solid ${currentTheme.border}`, background: currentTheme.surface, marginBottom: '3px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: `1px solid ${currentTheme.muted}`, flexShrink: 0 }}/>
+                    <span style={{ fontSize: '8px', color: currentTheme.text }}>{opt.substring(0, 25)}</span>
                   </div>
                 ))}
-
-                <div style={{ width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontSize: '9px', fontWeight: '700', padding: '9px', borderRadius: '7px', textAlign: 'center', marginTop: '8px', fontFamily: 'Syne, sans-serif' }}>
-                  {previewBlock.type === 'capture' ? 'Ver meu diagnóstico →' : previewBlock.type === 'offer' ? 'Quero meu plano agora →' : 'Continuar →'}
+                <div style={{ width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontSize: '9px', fontWeight: '700', padding: '8px', borderRadius: '6px', textAlign: 'center', marginTop: '6px', fontFamily: 'Syne, sans-serif' }}>
+                  {previewBlock.type === 'capture' ? 'Ver meu diagnóstico →' : previewBlock.type === 'offer' ? 'Quero agora →' : 'Continuar →'}
                 </div>
               </div>
             )}
