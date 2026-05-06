@@ -91,6 +91,8 @@ export default function EditarQuizPage() {
   const [previewStep, setPreviewStep] = useState(0)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
+  const [sectionDrag, setSectionDrag] = useState<{ blockId: string; fromIdx: number } | null>(null)
+  const [sectionDragOver, setSectionDragOver] = useState<{ blockId: string; toIdx: number } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const photoRef = useRef<HTMLInputElement>(null)
   const sectionFileRef = useRef<HTMLInputElement>(null)
@@ -528,11 +530,43 @@ export default function EditarQuizPage() {
                             Monte seções dentro do bloco — títulos, textos, listas, botões e imagens.
                           </div>
                           {(block.sections ?? []).map((section, sidx) => (
-                            <div key={section.id} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #1e3050', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase' }}>Seção {sidx + 1}</span>
-                                <button onClick={() => deleteSection(block.id, section.id)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-                              </div>
+  <div
+    key={section.id}
+    draggable
+    onDragStart={() => setSectionDrag({ blockId: block.id, fromIdx: sidx })}
+    onDragOver={e => { e.preventDefault(); setSectionDragOver({ blockId: block.id, toIdx: sidx }) }}
+    onDrop={e => {
+      e.preventDefault()
+      if (!sectionDrag || sectionDrag.blockId !== block.id) return
+      const { fromIdx } = sectionDrag
+      const toIdx = sidx
+      if (fromIdx === toIdx) { setSectionDrag(null); setSectionDragOver(null); return }
+      setBlocks(bs => bs.map(b => {
+        if (b.id !== block.id) return b
+        const secs = [...(b.sections ?? [])]
+        const [moved] = secs.splice(fromIdx, 1)
+        secs.splice(toIdx, 0, moved)
+        return { ...b, sections: secs }
+      }))
+      setSectionDrag(null)
+      setSectionDragOver(null)
+    }}
+    onDragEnd={() => { setSectionDrag(null); setSectionDragOver(null) }}
+    style={{
+      background: 'rgba(0,0,0,0.3)',
+      border: `1px solid ${sectionDragOver?.blockId === block.id && sectionDragOver?.toIdx === sidx ? 'rgba(37,99,255,0.4)' : '#1e3050'}`,
+      borderRadius: '10px', padding: '12px', marginBottom: '10px',
+      opacity: sectionDrag?.blockId === block.id && sectionDrag?.fromIdx === sidx ? 0.4 : 1,
+      transition: 'all 0.2s',
+    }}
+  >
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ color: '#4e6a90', fontSize: '14px', cursor: 'grab' }}>⠿</span>
+        <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase' }}>Seção {sidx + 1}</span>
+      </div>
+      <button onClick={() => deleteSection(block.id, section.id)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+    </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <div>
                                   <label style={lbl}>Badge (ex: RECOMENDADO)</label>
