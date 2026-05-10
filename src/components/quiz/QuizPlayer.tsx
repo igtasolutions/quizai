@@ -21,10 +21,16 @@ interface QuizBlock {
   subtitleFontFamily?: string; subtitleFontSize?: string; subtitleColor?: string; subtitleBold?: boolean; subtitleItalic?: boolean; subtitleUnderline?: boolean
   imageUrl?: string; imageAlt?: string; galleryImages?: string[]
   videoProvider?: string; videoUrl?: string; videoEmbed?: string
-  videoLockSeconds?: number; videoLockAction?: string
-  videoDuration?: number; videoPitchSecond?: number
+  videoLockSeconds?: number; videoLockAction?: string; videoDuration?: number; videoPitchSecond?: number
   testimonialPhoto?: string; testimonialName?: string; testimonialRole?: string; testimonialText?: string; testimonialStars?: number
   sections?: RichSection[]
+  // Novos tipos
+  scoreWeight?: number // peso da resposta no score (0-10)
+  calculatorLabel?: string // label do campo de entrada
+  calculatorUnit?: string // unidade (R$, %, horas)
+  calculatorMultiplier?: number // multiplicador para calcular perda
+  meterLabel?: string // label do medidor
+  meterMax?: number // valor máximo do medidor
 }
 
 interface Quiz {
@@ -33,7 +39,7 @@ interface Quiz {
 }
 
 interface LeadAnswer {
-  step: number; option: string; text: string; time_spent_ms: number
+  step: number; option: string; text: string; time_spent_ms: number; score?: number
 }
 
 const DEFAULT_THEME: Theme = {
@@ -61,6 +67,111 @@ function StarRating({ stars }: { stars: number }) {
   )
 }
 
+// MEDIDOR VISUAL (Score/Termômetro)
+function ScoreMeter({ score, max, label, theme, accent }: { score: number; max: number; label: string; theme: Theme; accent: string }) {
+  const pct = Math.min(100, Math.round((score / max) * 100))
+  const color = pct >= 70 ? '#f87171' : pct >= 40 ? '#fbbf24' : '#22c55e'
+  const [animated, setAnimated] = useState(0)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimated(pct), 100)
+    return () => clearTimeout(timer)
+  }, [pct])
+
+  return (
+    <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '120px', height: '120px', background: `radial-gradient(circle, ${color}15 0%, transparent 70%)`, pointerEvents: 'none' }}/>
+      <div style={{ fontSize: '12px', color: theme.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>{label}</div>
+
+      {/* GAUGE CIRCULAR */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+        <svg width="160" height="100" viewBox="0 0 160 100">
+          {/* Fundo do arco */}
+          <path d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke={theme.border} strokeWidth="12" strokeLinecap="round"/>
+          {/* Arco de progresso */}
+          <path
+            d="M 20 90 A 60 60 0 0 1 140 90"
+            fill="none"
+            stroke={color}
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeDasharray={`${(animated / 100) * 188} 188`}
+            style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(0.4, 0, 0.2, 1)', filter: `drop-shadow(0 0 8px ${color})` }}
+          />
+          {/* Valor central */}
+          <text x="80" y="80" textAnchor="middle" style={{ fontSize: '28px', fontWeight: '800', fill: color, fontFamily: 'Syne, sans-serif' }}>
+            {score}
+          </text>
+          <text x="80" y="98" textAnchor="middle" style={{ fontSize: '11px', fill: theme.muted }}>
+            de {max}
+          </text>
+        </svg>
+      </div>
+
+      {/* BARRA DE PROGRESSO */}
+      <div style={{ height: '8px', background: `${theme.border}`, borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
+        <div style={{ height: '100%', width: `${animated}%`, background: `linear-gradient(90deg, ${color}80, ${color})`, borderRadius: '4px', transition: 'width 1.2s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: `0 0 10px ${color}60` }}/>
+      </div>
+
+      {/* LABELS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: theme.muted }}>
+        <span style={{ color: '#22c55e' }}>Baixo</span>
+        <span style={{ color: '#fbbf24' }}>Médio</span>
+        <span style={{ color: '#f87171' }}>Alto</span>
+      </div>
+    </div>
+  )
+}
+
+// CALCULADORA
+function Calculator({ block, theme, onNext }: { block: QuizBlock; theme: Theme; onNext: (value: number) => void }) {
+  const [value, setValue] = useState('')
+  const [result, setResult] = useState<number | null>(null)
+
+  const calculate = () => {
+    const num = parseFloat(value.replace(/[^0-9.]/g, ''))
+    if (isNaN(num)) return
+    const loss = num * (block.calculatorMultiplier ?? 0.3)
+    setResult(loss)
+  }
+
+  return (
+    <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px' }}>
+      <div style={{ fontSize: '13px', color: theme.muted, marginBottom: '12px' }}>
+        {block.calculatorLabel || 'Digite o valor:'}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1, background: 'rgba(0,0,0,0.4)', border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '0 14px' }}>
+          <span style={{ color: theme.muted, fontSize: '14px', marginRight: '8px' }}>{block.calculatorUnit || 'R$'}</span>
+          <input
+            type="number"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            placeholder="0"
+            style={{ flex: 1, background: 'transparent', border: 'none', color: theme.text, fontSize: '20px', fontWeight: '700', outline: 'none', fontFamily: 'Syne, sans-serif', padding: '12px 0' }}
+          />
+        </div>
+        <button onClick={calculate} style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', border: 'none', borderRadius: '10px', padding: '0 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'Syne, sans-serif' }}>
+          Calcular
+        </button>
+      </div>
+
+      {result !== null && (
+        <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '12px', padding: '16px', textAlign: 'center', animation: 'fadeIn 0.5s ease' }}>
+          <div style={{ fontSize: '12px', color: theme.muted, marginBottom: '6px' }}>Você está perdendo por mês:</div>
+          <div style={{ fontSize: '32px', fontWeight: '800', color: '#f87171', fontFamily: 'Syne, sans-serif' }}>
+            {block.calculatorUnit || 'R$'} {result.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '11px', color: theme.muted, marginTop: '6px' }}>Isso é R$ {(result * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por ano</div>
+          <button onClick={() => onNext(result)} style={{ marginTop: '14px', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', border: 'none', borderRadius: '10px', padding: '12px 24px', fontSize: '14px', fontWeight: '800', cursor: 'pointer', fontFamily: 'Syne, sans-serif', boxShadow: `0 0 20px ${theme.accent}40` }}>
+            Ver como resolver →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const theme: Theme = { ...DEFAULT_THEME, ...(quiz.theme ?? {}) }
 
@@ -72,7 +183,9 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const [leadData, setLeadData] = useState({ name: '', email: '', phone: '' })
   const [stepStartTime, setStepStartTime] = useState(Date.now())
   const [animating, setAnimating] = useState(false)
+  const [animDir, setAnimDir] = useState<'in' | 'out'>('in')
   const [showContinue, setShowContinue] = useState(false)
+  const [totalScore, setTotalScore] = useState(0)
 
   const timerRef = useRef<any>(null)
   const countRef = useRef(0)
@@ -85,7 +198,6 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   const progress = Math.round(((currentStep + 1) / totalSteps) * 100)
 
   const isVideoBlock = currentBlock?.type === 'video'
-  // Bloco rico pode ter vídeo dentro
   const hasVideo = isVideoBlock || (currentBlock?.type === 'rich' && !!currentBlock?.videoUrl)
   const videoLockSeconds = hasVideo ? (currentBlock.videoLockSeconds ?? 0) : 0
   const needsLock = videoLockSeconds > 0
@@ -104,14 +216,10 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
 
   const saveVideoSeconds = useCallback(async () => {
     if (Object.keys(videoSecondsRef.current).length === 0) return
-    await fetch(`/api/leads`, {
+    await fetch('/api/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lead_id: leadIdRef.current,
-        session_id: sessionId,
-        video_seconds_watched: videoSecondsRef.current,
-      }),
+      body: JSON.stringify({ lead_id: leadIdRef.current, session_id: sessionId, video_seconds_watched: videoSecondsRef.current }),
     })
   }, [sessionId])
 
@@ -132,19 +240,22 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
     return () => window.removeEventListener('beforeunload', handleUnload)
   }, [saveVideoSeconds])
 
-  const goNext = useCallback(() => {
+  const goNext = useCallback((extraScore = 0) => {
     if (currentStep < totalSteps - 1) {
+      setAnimDir('out')
       setAnimating(true)
-      setTimeout(() => { setCurrentStep(s => s + 1); setAnimating(false) }, 200)
+      setTotalScore(s => s + extraScore)
+      setTimeout(() => {
+        setCurrentStep(s => s + 1)
+        setAnimDir('in')
+        setTimeout(() => setAnimating(false), 50)
+      }, 300)
     }
   }, [currentStep, totalSteps])
 
-  // Timer do vídeo — analytics + lock
   useEffect(() => {
     if (!hasVideo) return
-
     const blockId = currentBlock?.id ?? ''
-
     const startTimer = () => {
       if (timerRef.current) return
       timerRef.current = setInterval(() => {
@@ -158,11 +269,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         }
       }, 1000)
     }
-
-    const stopTimer = () => {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
+    const stopTimer = () => { clearInterval(timerRef.current); timerRef.current = null }
 
     if (currentBlock?.videoProvider === 'youtube' && currentBlock?.videoUrl) {
       const setupYT = () => {
@@ -170,18 +277,11 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         const iframe = document.getElementById(iframeId)
         if (!iframe) return
         new (window as any).YT.Player(iframeId, {
-          events: {
-            onStateChange: (e: any) => {
-              if (e.data === 1) startTimer()
-              else stopTimer()
-            },
-          },
+          events: { onStateChange: (e: any) => { if (e.data === 1) startTimer(); else stopTimer() } },
         })
       }
-
-      if ((window as any).YT?.Player) {
-        setTimeout(setupYT, 800)
-      } else {
+      if ((window as any).YT?.Player) setTimeout(setupYT, 800)
+      else {
         if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
           const tag = document.createElement('script')
           tag.src = 'https://www.youtube.com/iframe_api'
@@ -193,25 +293,20 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
       window.addEventListener('focus', startTimer)
       window.addEventListener('blur', stopTimer)
       startTimer()
-      return () => {
-        stopTimer()
-        window.removeEventListener('focus', startTimer)
-        window.removeEventListener('blur', stopTimer)
-      }
+      return () => { stopTimer(); window.removeEventListener('focus', startTimer); window.removeEventListener('blur', stopTimer) }
     }
-
     return () => stopTimer()
   }, [hasVideo, needsLock, videoLockSeconds, currentStep])
 
-  const selectOption = async (option: string, index: number) => {
+  const selectOption = async (option: string, index: number, score = 0) => {
     setSelectedOption(option)
     const answer: LeadAnswer = {
       step: currentStep, option: String.fromCharCode(65 + index),
-      text: option, time_spent_ms: Date.now() - stepStartTime,
+      text: option, time_spent_ms: Date.now() - stepStartTime, score,
     }
     setAnswers(prev => [...prev, answer])
     await track('step_complete', currentStep, { option: answer.option })
-    setTimeout(() => goNext(), 400)
+    setTimeout(() => goNext(score), 400)
   }
 
   const submitLead = async () => {
@@ -243,7 +338,8 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   }
 
   const renderTitle = (text: string, block: QuizBlock) => {
-    const parts = String(text ?? '').split(/\*([^*]+)\*/)
+    const safeText = String(text ?? '')
+    const parts = safeText.split(/\*([^*]+)\*/)
     return (
       <h1 style={{
         fontSize: block.fontSize || 'clamp(20px, 5vw, 28px)',
@@ -260,9 +356,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   }
 
   const renderVideo = (block: QuizBlock) => {
-    if (block.videoProvider === 'vturb' && block.videoEmbed) {
-      return <div dangerouslySetInnerHTML={{ __html: block.videoEmbed }} style={{ width: '100%' }}/>
-    }
+    if (block.videoProvider === 'vturb' && block.videoEmbed) return <div dangerouslySetInnerHTML={{ __html: block.videoEmbed }} style={{ width: '100%' }}/>
     if (block.videoProvider === 'youtube' && block.videoUrl) {
       const vid = getYouTubeId(block.videoUrl)
       if (!vid) return null
@@ -279,32 +373,20 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
       if (!vid) return null
       return <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}><iframe src={`https://player.vimeo.com/video/${vid}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/></div>
     }
-    if (block.videoUrl) {
-      return <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}><iframe src={block.videoUrl} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/></div>
-    }
-    return null
+    if (block.videoUrl) return <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%' }}><iframe src={block.videoUrl} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '10px' }} allowFullScreen/></div>
+    return <div style={{ background: theme.surface, border: `1px dashed ${theme.border}`, borderRadius: '10px', padding: '40px', textAlign: 'center', color: theme.muted, fontSize: '13px' }}>Configure o vídeo no editor →</div>
   }
 
   const renderSection = (section: RichSection) => (
     <div key={section.id} style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px', background: `radial-gradient(circle, ${theme.accent}10 0%, transparent 70%)`, pointerEvents: 'none' }}/>
-
       {section.badge && <div style={{ display: 'inline-block', background: `${theme.accent}20`, border: `1px solid ${theme.accent}40`, color: theme.accent2, fontSize: '9px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>{section.badge}</div>}
-
-      {section.number && (
-        <div style={{ marginBottom: '4px' }}>
-          {section.numberLabel && <div style={{ fontSize: '9px', color: theme.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>{section.numberLabel}</div>}
-          <div style={{ fontSize: '48px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: theme.border, lineHeight: 1 }}>{section.number}</div>
-        </div>
-      )}
-
+      {section.number && <div style={{ marginBottom: '4px' }}>{section.numberLabel && <div style={{ fontSize: '9px', color: theme.muted, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>{section.numberLabel}</div>}<div style={{ fontSize: '48px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: theme.border, lineHeight: 1 }}>{section.number}</div></div>}
       {section.title && <div style={{ fontSize: '16px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: theme.text, marginBottom: '8px', lineHeight: '1.3' }}>{section.title}</div>}
-
       {section.text && <p style={{ fontSize: '13px', color: theme.muted, lineHeight: '1.6', marginBottom: '10px', whiteSpace: 'pre-line' }}>{section.text}</p>}
-
       {section.listType && section.listType !== 'none' && section.items && section.items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
-          {section.items.map((item, i) => (
+          {section.items.filter(Boolean).map((item, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
               <span style={{ color: section.listType === 'check' ? '#22c55e' : '#f87171', fontWeight: '700', fontSize: '13px', flexShrink: 0, marginTop: '1px' }}>{section.listType === 'check' ? '✓' : '✕'}</span>
               <span style={{ fontSize: '13px', color: theme.text, lineHeight: '1.5' }}>{item}</span>
@@ -312,39 +394,21 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           ))}
         </div>
       )}
-
-      {/* Galeria de imagens da seção */}
       {section.images && section.images.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
-          {section.images.map((img, i) => (
-            <div key={i} style={{ borderRadius: '10px', overflow: 'hidden', border: `1px solid ${theme.border}` }}>
-              <img src={img} alt="" style={{ width: '100%', display: 'block', maxHeight: '250px', objectFit: 'cover' }}/>
-            </div>
-          ))}
+          {section.images.map((img, i) => <div key={i} style={{ borderRadius: '10px', overflow: 'hidden', border: `1px solid ${theme.border}` }}><img src={img} alt="" style={{ width: '100%', display: 'block', maxHeight: '250px', objectFit: 'cover' }}/></div>)}
         </div>
       )}
-
-      {/* Prova social da seção */}
       {section.testimonialName && (
         <div style={{ background: `${theme.surface}80`, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '12px', marginBottom: '10px' }}>
           {section.stars && section.stars > 0 && <StarRating stars={section.stars}/>}
           {section.testimonialText && <p style={{ fontSize: '13px', color: theme.text, lineHeight: '1.6', marginBottom: '10px', fontStyle: 'italic' }}>"{section.testimonialText}"</p>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {section.testimonialPhoto ? (
-              <img src={section.testimonialPhoto} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${theme.accent}50` }}/>
-            ) : (
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg, ${theme.accent}, #7c3aed)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '13px', color: '#fff' }}>
-                {section.testimonialName[0].toUpperCase()}
-              </div>
-            )}
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: theme.text }}>{section.testimonialName}</div>
-              {section.testimonialRole && <div style={{ fontSize: '10px', color: theme.muted }}>{section.testimonialRole}</div>}
-            </div>
+            {section.testimonialPhoto ? <img src={section.testimonialPhoto} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${theme.accent}50` }}/> : <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg, ${theme.accent}, #7c3aed)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '13px', color: '#fff' }}>{section.testimonialName[0].toUpperCase()}</div>}
+            <div><div style={{ fontSize: '12px', fontWeight: '600', color: theme.text }}>{section.testimonialName}</div>{section.testimonialRole && <div style={{ fontSize: '10px', color: theme.muted }}>{section.testimonialRole}</div>}</div>
           </div>
         </div>
       )}
-
       {section.buttonEnabled && section.buttonText && (
         <button onClick={() => { if (section.buttonUrl) window.open(section.buttonUrl, '_blank') }} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '14px', padding: '13px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: `0 0 20px ${theme.accent}40` }}>
           {section.buttonText}
@@ -354,18 +418,27 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   )
 
   if (!currentBlock) return null
-  const showCTAButton = !['question', 'capture', 'offer'].includes(currentBlock.type) && showContinue
+  const showCTAButton = !['question', 'capture', 'offer', 'calculator'].includes(currentBlock.type) && showContinue
+
+  // Calcula score máximo possível
+  const maxScore = blocks.filter(b => b.type === 'question').length * 10
 
   return (
     <div style={{ minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'DM Sans, sans-serif' }}>
       <style>{`
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes glow-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideOutLeft { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-40px); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .shimmer-text { background: linear-gradient(90deg, ${theme.accent2} 0%, #ffffff 40%, ${theme.accent2} 60%, ${theme.accent} 100%); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: shimmer 2.5s linear infinite; font-weight: inherit; }
         .glow-card { position: relative; overflow: hidden; }
         .glow-card::before { content: ''; position: absolute; top: -50px; right: -50px; width: 180px; height: 180px; background: radial-gradient(circle, ${theme.accent}18 0%, transparent 70%); pointer-events: none; animation: glow-pulse 3s ease-in-out infinite; }
         .opt-btn { transition: all 0.2s ease; }
         .opt-btn:hover { border-color: ${theme.accent}80 !important; transform: translateY(-1px); }
+        .slide-in { animation: slideInRight 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .slide-out { animation: slideOutLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .fade-in { animation: fadeIn 0.4s ease forwards; }
       `}</style>
 
       {/* PROGRESS BAR */}
@@ -373,8 +446,8 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         <div style={{ maxWidth: '480px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '-1px', fontFamily: 'Syne, sans-serif', color: theme.text }}>Quiz<span style={{ color: theme.accent2 }}>AI</span></div>
           <div style={{ flex: 1 }}>
-            <div style={{ height: '3px', background: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: `linear-gradient(90deg, ${theme.accent}, ${theme.accent2})`, borderRadius: '2px', width: `${progress}%`, transition: 'width 0.5s ease' }}/>
+            <div style={{ height: '4px', background: theme.border, borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: `linear-gradient(90deg, ${theme.accent}, ${theme.accent2})`, borderRadius: '2px', width: `${progress}%`, transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: `0 0 8px ${theme.accent}60` }}/>
             </div>
             <div style={{ fontSize: '10px', color: theme.muted, marginTop: '3px', textAlign: 'right' }}>{currentStep + 1} de {totalSteps}</div>
           </div>
@@ -382,36 +455,59 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
         </div>
       </div>
 
-      <div style={{ maxWidth: '480px', margin: '0 auto', padding: '32px 20px 80px', opacity: animating ? 0 : 1, transition: 'opacity 0.2s ease' }}>
+      {/* CONTEÚDO COM ANIMAÇÃO */}
+      <div
+        className={animating ? 'slide-out' : 'slide-in'}
+        style={{ maxWidth: '480px', margin: '0 auto', padding: '32px 20px 80px' }}
+      >
         <div style={{ position: 'fixed', top: '30%', left: '50%', transform: 'translateX(-50%)', width: '500px', height: '400px', background: `radial-gradient(ellipse, ${theme.accent}08 0%, transparent 70%)`, pointerEvents: 'none', zIndex: 0 }}/>
 
+        {/* TAG */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10px', letterSpacing: '1.5px', color: theme.accent2, textTransform: 'uppercase', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: theme.accent2, boxShadow: `0 0 10px ${theme.accent2}` }}/>
           {currentBlock.label}
         </div>
 
-        {/* CARD PRINCIPAL */}
-        <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, boxShadow: `0 0 40px ${theme.accent}08` }}>
-          {renderTitle(currentBlock.title, currentBlock)}
-          {currentBlock.subtitle && (
-            <p style={{
-              fontSize: currentBlock.subtitleFontSize || '14px',
-              fontFamily: currentBlock.subtitleFontFamily || 'DM Sans, sans-serif',
-              color: currentBlock.subtitleColor || theme.muted,
-              fontWeight: currentBlock.subtitleBold ? '700' : '400',
-              fontStyle: currentBlock.subtitleItalic ? 'italic' : 'normal',
-              textDecoration: currentBlock.subtitleUnderline ? 'underline' : 'none',
-              lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0,
-            }}>
-              {currentBlock.subtitle}
-            </p>
-          )}
-          {currentBlock.imageUrl && (
-            <div style={{ marginTop: '16px', borderRadius: '10px', overflow: 'hidden', border: `1px solid ${theme.border}` }}>
-              <img src={currentBlock.imageUrl} alt={currentBlock.imageAlt || ''} style={{ width: '100%', display: 'block', maxHeight: '300px', objectFit: 'cover' }}/>
+        {/* MEDIDOR DE SCORE */}
+        {currentBlock.type === 'meter' && (
+          <div style={{ position: 'relative', zIndex: 1, marginBottom: '0' }}>
+            <ScoreMeter
+              score={totalScore}
+              max={maxScore || 10}
+              label={currentBlock.meterLabel || 'Seu nível de urgência'}
+              theme={theme}
+              accent={theme.accent}
+            />
+          </div>
+        )}
+
+        {/* CALCULADORA */}
+        {currentBlock.type === 'calculator' && (
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
+              {renderTitle(currentBlock.title, currentBlock)}
+              {currentBlock.subtitle && <p style={{ fontSize: '14px', color: theme.muted, lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>{currentBlock.subtitle}</p>}
             </div>
-          )}
-        </div>
+            <Calculator block={currentBlock} theme={theme} onNext={() => goNext()} />
+          </div>
+        )}
+
+        {/* CARD PRINCIPAL */}
+        {currentBlock.type !== 'meter' && currentBlock.type !== 'calculator' && (
+          <div className="glow-card" style={{ background: `${theme.surface}b0`, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '24px', marginBottom: '20px', position: 'relative', zIndex: 1, boxShadow: `0 0 40px ${theme.accent}08` }}>
+            {renderTitle(currentBlock.title, currentBlock)}
+            {currentBlock.subtitle && (
+              <p style={{ fontSize: currentBlock.subtitleFontSize || '14px', fontFamily: currentBlock.subtitleFontFamily || 'DM Sans, sans-serif', color: currentBlock.subtitleColor || theme.muted, fontWeight: currentBlock.subtitleBold ? '700' : '400', fontStyle: currentBlock.subtitleItalic ? 'italic' : 'normal', textDecoration: currentBlock.subtitleUnderline ? 'underline' : 'none', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
+                {currentBlock.subtitle}
+              </p>
+            )}
+            {currentBlock.imageUrl && (
+              <div style={{ marginTop: '16px', borderRadius: '10px', overflow: 'hidden', border: `1px solid ${theme.border}` }}>
+                <img src={currentBlock.imageUrl} alt={currentBlock.imageAlt || ''} style={{ width: '100%', display: 'block', maxHeight: '300px', objectFit: 'cover' }}/>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* VÍDEO */}
         {(currentBlock.videoUrl || currentBlock.videoEmbed) && (
@@ -422,7 +518,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
-        {/* GALERIA DE IMAGENS */}
+        {/* GALERIA */}
         {currentBlock.galleryImages && currentBlock.galleryImages.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', position: 'relative', zIndex: 1 }}>
             {currentBlock.galleryImages.map((img, i) => (
@@ -440,27 +536,26 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </div>
         )}
 
-        {/* PROVA SOCIAL DO BLOCO */}
+        {/* PROVA SOCIAL */}
         {currentBlock.testimonialName && (
           <div style={{ background: `${theme.surface}cc`, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', marginBottom: '20px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>
             {(currentBlock as any).testimonialStars > 0 && <StarRating stars={(currentBlock as any).testimonialStars}/>}
             {currentBlock.testimonialText && <p style={{ fontSize: '14px', color: theme.text, lineHeight: '1.6', marginBottom: '14px', fontStyle: 'italic' }}>"{currentBlock.testimonialText}"</p>}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {currentBlock.testimonialPhoto ? <img src={currentBlock.testimonialPhoto} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${theme.accent}50` }}/> : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `linear-gradient(135deg, ${theme.accent}, #7c3aed)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', color: '#fff' }}>{currentBlock.testimonialName[0].toUpperCase()}</div>}
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: theme.text }}>{currentBlock.testimonialName}</div>
-                {currentBlock.testimonialRole && <div style={{ fontSize: '11px', color: theme.muted }}>{currentBlock.testimonialRole}</div>}
-              </div>
+              <div><div style={{ fontSize: '13px', fontWeight: '600', color: theme.text }}>{currentBlock.testimonialName}</div>{currentBlock.testimonialRole && <div style={{ fontSize: '11px', color: theme.muted }}>{currentBlock.testimonialRole}</div>}</div>
             </div>
           </div>
         )}
 
         {/* OPÇÕES */}
-        {currentBlock.type === 'question' && currentBlock.options.length > 0 && (
+        {currentBlock.type === 'question' && currentBlock.options.filter(Boolean).length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px', position: 'relative', zIndex: 1 }}>
-            {currentBlock.options.map((opt, i) => (
-              <button key={i} onClick={() => selectOption(opt, i)} className="opt-btn" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.border}`, background: selectedOption === opt ? `${theme.accent}18` : `${theme.surface}cc`, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: selectedOption === opt ? `0 0 20px ${theme.accent}25` : 'none' }}>
-                <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.muted}`, background: selectedOption === opt ? `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0, marginTop: '1px', color: selectedOption === opt ? '#fff' : theme.muted, transition: 'all 0.2s' }}>{String.fromCharCode(65 + i)}</div>
+            {currentBlock.options.filter(Boolean).map((opt, i) => (
+              <button key={i} onClick={() => selectOption(opt, i, currentBlock.scoreWeight ?? (i === 0 ? 10 : i === 1 ? 7 : 4))} className="opt-btn" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px', borderRadius: '12px', border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.border}`, background: selectedOption === opt ? `${theme.accent}18` : `${theme.surface}cc`, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', boxShadow: selectedOption === opt ? `0 0 20px ${theme.accent}25` : 'none' }}>
+                <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${selectedOption === opt ? theme.accent : theme.muted}`, background: selectedOption === opt ? `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0, marginTop: '1px', color: selectedOption === opt ? '#fff' : theme.muted, transition: 'all 0.2s', boxShadow: selectedOption === opt ? `0 0 12px ${theme.accent}50` : 'none' }}>
+                  {String.fromCharCode(65 + i)}
+                </div>
                 <span style={{ fontSize: '14px', color: theme.text, lineHeight: '1.5', paddingTop: '3px' }}>{opt}</span>
               </button>
             ))}
@@ -494,8 +589,9 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
           </button>
         )}
 
+        {/* CTA PADRÃO */}
         {showCTAButton && (
-          <button onClick={goNext} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1 }}>
+          <button onClick={() => goNext()} style={{ width: '100%', background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`, color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: '800', fontSize: '15px', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', boxShadow: `0 0 28px ${theme.accent}40`, position: 'relative', zIndex: 1 }}>
             Continuar →
           </button>
         )}

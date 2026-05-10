@@ -57,6 +57,12 @@ interface Block {
   testimonialText?: string
   testimonialStars?: number
   sections?: RichSection[]
+  meterLabel?: string
+  meterMax?: number
+  calculatorLabel?: string
+  calculatorUnit?: string
+  calculatorMultiplier?: number
+  scoreWeight?: number
 }
 
 interface Theme {
@@ -86,6 +92,8 @@ const typeColors: Record<string, { bg: string; text: string; border: string }> =
   manual:       { bg: 'rgba(251,191,36,0.1)',  text: '#fbbf24', border: 'rgba(251,191,36,0.2)' },
   video:        { bg: 'rgba(239,68,68,0.1)',   text: '#fca5a5', border: 'rgba(239,68,68,0.2)' },
   rich:         { bg: 'rgba(16,185,129,0.1)',  text: '#6ee7b7', border: 'rgba(16,185,129,0.2)' },
+meter:          { bg: 'rgba(251,113,133,0.1)',  text: '#fda4af', border: 'rgba(251,113,133,0.2)' },
+  calculator:   { bg: 'rgba(139,92,246,0.1)',   text: '#c4b5fd', border: 'rgba(139,92,246,0.2)' },
 }
 
 const inp: React.CSSProperties = { width:'100%', background:'rgba(0,0,0,0.4)', border:'1px solid #162035', borderRadius:'8px', color:'#eef2ff', fontSize:'12px', padding:'9px 12px', outline:'none', boxSizing:'border-box', fontFamily:'DM Sans, sans-serif' }
@@ -271,6 +279,29 @@ export default function EditarQuizPage() {
     setEditando(nb.id)
     setPreviewStep(blocks.length)
   }
+  const addMeterBlock = () => {
+  const nb: Block = {
+    id: `meter-${Date.now()}`, type: 'meter', label: 'MEDIDOR',
+    title: 'Seu nível de urgência', subtitle: 'Baseado nas suas respostas, calculamos seu diagnóstico',
+    options: [], meterLabel: 'Nível de urgência', meterMax: 10,
+  }
+  setBlocks(bs => [...bs, nb])
+  setEditando(nb.id)
+  setPreviewStep(blocks.length)
+}
+
+const addCalculatorBlock = () => {
+  const nb: Block = {
+    id: `calc-${Date.now()}`, type: 'calculator', label: 'CALCULADORA',
+    title: 'Quanto você está perdendo por mês?',
+    subtitle: 'Digite seu faturamento atual e veja o impacto real',
+    options: [], calculatorLabel: 'Qual seu faturamento mensal atual?',
+    calculatorUnit: 'R$', calculatorMultiplier: 0.3,
+  }
+  setBlocks(bs => [...bs, nb])
+  setEditando(nb.id)
+  setPreviewStep(blocks.length)
+}
 
   const uploadImage = async (blockId: string, file: File, field: string, sectionId?: string) => {
     setUploading(blockId)
@@ -405,9 +436,17 @@ export default function EditarQuizPage() {
 
         {/* BOTÃO ADICIONAR */}
         <div style={{ marginBottom: '12px' }}>
-          <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '7px 16px', borderRadius: '7px', cursor: 'pointer' }}>
-            + Adicionar bloco
-          </button>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+         + Bloco rico
+         </button>
+  <button onClick={addMeterBlock} style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', color: '#fda4af', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+    + Medidor
+  </button>
+  <button onClick={addCalculatorBlock} style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', color: '#c4b5fd', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
+    + Calculadora
+  </button>
+</div>
         </div>
 
         <div style={{ fontSize: '10px', color: '#4e6a90', marginBottom: '10px' }}>
