@@ -243,7 +243,7 @@ export default function QuizPlayer({ quiz }: { quiz: Quiz }) {
   }
 
   const renderTitle = (text: string, block: QuizBlock) => {
-    const parts = text.split(/\*([^*]+)\*/)
+    const parts = String(text ?? '').split(/\*([^*]+)\*/)
     return (
       <h1 style={{
         fontSize: block.fontSize || 'clamp(20px, 5vw, 28px)',
