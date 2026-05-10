@@ -803,7 +803,7 @@ export default function EditarQuizPage() {
                   <div style={{ fontSize: '11px', fontWeight: '800', color: previewBlock.titleColor || currentTheme.text, fontFamily: previewBlock.fontFamily || 'Syne, sans-serif', marginBottom: '5px' }}>
                     {previewBlock.title.replace(/\*([^*]+)\*/g, '$1')}
                   </div>
-                  {previewBlock.subtitle && <div style={{ fontSize: '9px', color: currentTheme.muted }}>{previewBlock.subtitle.substring(0, 60)}...</div>}
+                  {previewBlock.subtitle && <div style={{ fontSize: '9px', color: currentTheme.muted }}>{String(previewBlock.subtitle ?? '').substring(0, 60)}...</div>}
                   {previewBlock.imageUrl && <div style={{ marginTop: '7px', borderRadius: '5px', overflow: 'hidden' }}><img src={previewBlock.imageUrl} alt="" style={{ width: '100%', maxHeight: '70px', objectFit: 'cover', display: 'block' }}/></div>}
                   {previewBlock.sections?.slice(0, 2).map((s: RichSection) => (
                     <div key={s.id} style={{ marginTop: '6px', padding: '6px', background: 'rgba(0,0,0,0.2)', borderRadius: '5px' }}>
@@ -815,7 +815,7 @@ export default function EditarQuizPage() {
                 {previewBlock.options?.slice(0, 2).map((opt: string, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 7px', borderRadius: '5px', border: `1px solid ${currentTheme.border}`, background: currentTheme.surface, marginBottom: '3px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: `1px solid ${currentTheme.muted}`, flexShrink: 0 }}/>
-                    <span style={{ fontSize: '8px', color: currentTheme.text }}>{opt.substring(0, 25)}</span>
+                    <span style={{ fontSize: '8px', color: currentTheme.text }}>{String(opt ?? '').substring(0, 25)}</span>
                   </div>
                 ))}
                 <div style={{ width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontSize: '9px', fontWeight: '700', padding: '8px', borderRadius: '6px', textAlign: 'center', marginTop: '6px', fontFamily: 'Syne, sans-serif' }}>
