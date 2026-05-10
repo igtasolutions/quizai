@@ -482,9 +482,9 @@ const addCalculatorBlock = () => {
                 {isEditing && (
                   <div style={{ borderTop: '1px solid #162035' }}>
                     <div style={{ display: 'flex', gap: '2px', padding: '6px 12px 0', background: 'rgba(0,0,0,0.2)', flexWrap: 'wrap' }}>
-                      {['conteudo', 'imagens', 'video', 'prova', 'secoes'].map(t => (
+                      {['conteudo', 'imagens', 'video', 'prova', 'secoes', ...(block.type === 'meter' || block.type === 'calculator' ? ['config'] : [])].map(t => (
                         <button key={t} onClick={() => setTab(block.id, t)} style={{ padding: '4px 9px', fontSize: '9px', fontWeight: '600', background: tab === t ? '#2563ff' : 'transparent', color: tab === t ? '#fff' : '#4e6a90', border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {t === 'conteudo' ? 'Conteúdo' : t === 'imagens' ? 'Imagens' : t === 'video' ? 'Vídeo' : t === 'prova' ? 'Prova Social' : 'Seções'}
+                          {t === 'conteudo' ? 'Conteúdo' : t === 'imagens' ? 'Imagens' : t === 'video' ? 'Vídeo' : t === 'prova' ? 'Prova Social' : t === 'secoes' ? 'Seções' : 'Config'}
                         </button>
                       ))}
                     </div>
@@ -797,6 +797,59 @@ const addCalculatorBlock = () => {
                           </button>
                         </div>
                       )}
+                        {/* CONFIG — Medidor e Calculadora */}
+{tab === 'config' && (
+                        <div>
+    {block.type === 'meter' && (
+      <div style={sec}>
+        <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>📊 Configurações do Medidor</div>
+        <div style={{ marginBottom: '10px' }}>
+          <label style={lbl}>Label do medidor</label>
+          <input value={block.meterLabel || ''} onChange={e => updateBlock(block.id, 'meterLabel', e.target.value)} placeholder="Ex: Nível de urgência financeira" style={inp}/>
+        </div>
+        <div>
+          <label style={lbl}>Valor máximo</label>
+          <input type="number" value={block.meterMax ?? 10} onChange={e => updateBlock(block.id, 'meterMax', Number(e.target.value))} style={inp}/>
+        </div>
+        <div style={{ marginTop: '10px', background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '8px', padding: '10px', fontSize: '11px', color: '#60a5fa' }}>
+          💡 O score é calculado automaticamente com base nas respostas das perguntas anteriores. Cada opção selecionada contribui com pontos.
+        </div>
+      </div>
+    )}
+    {block.type === 'calculator' && (
+      <div style={sec}>
+        <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>🧮 Configurações da Calculadora</div>
+        <div style={{ marginBottom: '10px' }}>
+          <label style={lbl}>Label do campo de entrada</label>
+          <input value={block.calculatorLabel || ''} onChange={e => updateBlock(block.id, 'calculatorLabel', e.target.value)} placeholder="Ex: Qual seu faturamento mensal atual?" style={inp}/>
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label style={lbl}>Unidade</label>
+          <select value={block.calculatorUnit || 'R$'} onChange={e => updateBlock(block.id, 'calculatorUnit', e.target.value)} style={{ ...inp }}>
+            <option value="R$">R$ (Reais)</option>
+            <option value="%">% (Porcentagem)</option>
+            <option value="h">h (Horas)</option>
+            <option value="leads">leads</option>
+            <option value="vendas">vendas</option>
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Multiplicador de perda</label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input type="number" min={0} max={1} step={0.01} value={block.calculatorMultiplier ?? 0.3} onChange={e => updateBlock(block.id, 'calculatorMultiplier', Number(e.target.value))} style={{ ...inp, flex: 1 }}/>
+            <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0 }}>
+              {Math.round((block.calculatorMultiplier ?? 0.3) * 100)}% do valor
+            </div>
+          </div>
+          <div style={{ fontSize: '10px', color: '#4e6a90', marginTop: '4px' }}>
+            Ex: 0.3 = o lead perde 30% do valor digitado por mês
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+                      
 
                       <button onClick={() => { setEditando(null); salvar() }} style={{ background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '11px', fontWeight: '700', fontFamily: 'Syne, sans-serif', padding: '7px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', marginTop: '8px' }}>
                         Salvar bloco
