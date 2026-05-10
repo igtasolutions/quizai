@@ -7,11 +7,18 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const PLAN_CONFIG: Record<string, { plan: string; ai: number; manual: number; total: number }> = {
-  [process.env.KIWIFY_PRODUCT_STARTER ?? 'starter']: { plan: 'starter',  ai: 1,  manual: 2,  total: 3 },
-  [process.env.KIWIFY_PRODUCT_PRO ?? 'pro']:          { plan: 'pro',      ai: 3,  manual: 2,  total: 5 },
-  [process.env.KIWIFY_PRODUCT_BUSINESS ?? 'business']:{ plan: 'business', ai: 10, manual: 0,  total: 10 },
-  [process.env.KIWIFY_PRODUCT_AGENCY ?? 'agency']:    { plan: 'agency',   ai: 35, manual: 15, total: 50 },
+const NAME_TO_PLAN: Record<string, { plan: string; ai: number; manual: number; total: number }> = {
+  'starter':  { plan: 'starter',  ai: 1,  manual: 2,  total: 3 },
+  'pro':      { plan: 'pro',      ai: 3,  manual: 2,  total: 5 },
+  'business': { plan: 'business', ai: 10, manual: 0,  total: 10 },
+  'agency':   { plan: 'agency',   ai: 35, manual: 15, total: 50 },
+}
+
+const PRICE_TO_PLAN: Record<number, { plan: string; ai: number; manual: number; total: number }> = {
+  3700:  { plan: 'starter',  ai: 1,  manual: 2,  total: 3 },
+  6700:  { plan: 'pro',      ai: 3,  manual: 2,  total: 5 },
+  9700:  { plan: 'business', ai: 10, manual: 0,  total: 10 },
+  19700: { plan: 'agency',   ai: 35, manual: 15, total: 50 },
 }
 
 function verifySignature(body: string, signature: string, secret: string): boolean {
@@ -21,13 +28,41 @@ function verifySignature(body: string, signature: string, secret: string): boole
   return computed === signature
 }
 
+function identifyPlan(data: any) {
+  // 1. Tenta pelo nome da oferta/plano da assinatura
+  const planName = (data.Subscription?.plan?.name ?? '').toLowerCase()
+  if (planName) {
+    const found = Object.entries(NAME_TO_PLAN).find(([key]) => planName.includes(key))
+    if (found) return found[1]
+  }
+
+  // 2. Tenta pelo valor pago
+  const amount = data.Commissions?.product_base_price ?? 0
+  if (amount && PRICE_TO_PLAN[amount]) return PRICE_TO_PLAN[amount]
+
+  // 3. Tenta pelo nome do produto
+  const productName = (data.Product?.product_name ?? '').toLowerCase()
+  if (productName) {
+    const found = Object.entries(NAME_TO_PLAN).find(([key]) => productName.includes(key))
+    if (found) return found[1]
+  }
+
+  // 4. Tenta pelo order_ref ou outros campos
+  const orderRef = (data.order_ref ?? '').toLowerCase()
+  if (orderRef) {
+    const found = Object.entries(NAME_TO_PLAN).find(([key]) => orderRef.includes(key))
+    if (found) return found[1]
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text()
     const signature = req.headers.get('x-kiwify-signature') ?? ''
     const secret = process.env.KIWIFY_WEBHOOK_SECRET ?? ''
 
-    // Verifica assinatura se secret estiver configurado
     if (secret && signature) {
       const valid = verifySignature(rawBody, signature, secret)
       if (!valid) {
@@ -37,18 +72,16 @@ export async function POST(req: NextRequest) {
     }
 
     const data = JSON.parse(rawBody)
-    console.log('Kiwify webhook COMPLETO:', JSON.stringify(data))
+    console.log('Kiwify webhook:', JSON.stringify(data).substring(0, 500))
 
-    const event = data.type ?? data.event ?? data.order_status ?? data.status ?? ''
-    const productId = data.Product?.id ?? data.product?.id ?? data.product_id ?? ''
-    const customerEmail = data.Customer?.email ?? data.customer?.email ?? data.email ?? ''
-    const customerName = data.Customer?.full_name ?? data.customer?.name ?? data.name ?? ''
+    const event = data.webhook_event_type ?? data.type ?? data.event ?? data.order_status ?? ''
+    const customerEmail = (data.Customer?.email ?? data.customer?.email ?? data.email ?? '').toLowerCase()
+    const customerName = data.Customer?.full_name ?? data.customer?.name ?? ''
 
-    console.log('Event:', event, 'Product:', productId, 'Email:', customerEmail)
+    console.log('Event:', event, 'Email:', customerEmail)
 
-    // Só processa compras aprovadas
     const approvedEvents = ['order_approved', 'purchase_approved', 'approved', 'paid', 'completed']
-const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLowerCase())) || data.order_status === 'paid'
+    const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLowerCase()))
 
     if (!isApproved) {
       console.log('Evento ignorado:', event)
@@ -56,40 +89,33 @@ const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLo
     }
 
     if (!customerEmail) {
-      console.error('Email do cliente não encontrado no webhook')
+      console.error('Email do cliente não encontrado')
       return NextResponse.json({ error: 'Email não encontrado' }, { status: 400 })
     }
 
-    // Determina o plano pelo produto
-    const planConfig = PLAN_CONFIG[productId]
-    if (!planConfig) {
-      console.error('Produto não mapeado:', productId, 'Produtos configurados:', Object.keys(PLAN_CONFIG))
-      // Tenta pelo nome do produto
-      const productName = (data.product?.name ?? data.Product?.name ?? '').toLowerCase()
-      const planByName = Object.values(PLAN_CONFIG).find(p => productName.includes(p.plan))
-      if (!planByName) {
-        return NextResponse.json({ error: `Produto não mapeado: ${productId}` }, { status: 400 })
-      }
-      Object.assign(planConfig ?? {}, planByName)
-    }
-
-    const config = planConfig ?? Object.values(PLAN_CONFIG).find(p =>
-      (data.product?.name ?? '').toLowerCase().includes(p.plan)
-    )
-
+    const config = identifyPlan(data)
     if (!config) {
-      return NextResponse.json({ error: 'Plano não identificado' }, { status: 400 })
+      const planName = data.Subscription?.plan?.name
+      const amount = data.Commissions?.product_base_price
+      console.error('Plano não identificado. Nome:', planName, 'Valor:', amount)
+      return NextResponse.json({ 
+        error: 'Plano não identificado', 
+        plan_name: planName, 
+        amount,
+        tip: 'Verifique se o nome da oferta na Kiwify contém: starter, pro, business ou agency'
+      }, { status: 400 })
     }
+
+    console.log('Plano identificado:', config.plan)
 
     // Busca usuário pelo email
     const { data: userData } = await supabaseAdmin
       .from('users')
       .select('id, plan')
-      .eq('email', customerEmail.toLowerCase())
+      .eq('email', customerEmail)
       .single()
 
     if (userData) {
-      // Usuário existe — atualiza o plano
       const { error } = await supabaseAdmin
         .from('users')
         .update({
@@ -98,7 +124,6 @@ const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLo
           ai_quiz_limit: config.ai,
           manual_quiz_limit: config.manual,
           quiz_limit: config.total,
-          // Zera contadores ao fazer upgrade
           ai_quizzes_used: 0,
           manual_quizzes_used: 0,
         })
@@ -109,28 +134,19 @@ const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLo
       console.log(`✅ Plano ${config.plan} ativado para ${customerEmail}`)
       return NextResponse.json({ ok: true, message: `Plano ${config.plan} ativado`, user_id: userData.id })
     } else {
-      // Usuário não existe — cria conta pendente
-      // O usuário precisará se cadastrar com o mesmo email
-      console.log(`⚠️ Usuário não encontrado: ${customerEmail} — compra registrada mas conta não existe`)
-
-      // Salva compra pendente para quando o usuário se cadastrar
-      const { error } = await supabaseAdmin
+      console.log(`⚠️ Usuário não encontrado: ${customerEmail}`)
+      await supabaseAdmin
         .from('pending_activations')
         .upsert({
-          email: customerEmail.toLowerCase(),
+          email: customerEmail,
           name: customerName,
           plan: config.plan,
           ai_quiz_limit: config.ai,
           manual_quiz_limit: config.manual,
           quiz_limit: config.total,
-          product_id: productId,
           created_at: new Date().toISOString(),
         })
-
-      if (error) {
-        // Tabela pode não existir ainda — log e continua
-        console.log('Tabela pending_activations não existe ainda:', error.message)
-      }
+        .catch(e => console.log('pending_activations erro:', e.message))
 
       return NextResponse.json({ ok: true, message: 'Compra registrada — usuário ainda não cadastrado' })
     }
