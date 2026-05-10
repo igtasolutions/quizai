@@ -59,31 +59,56 @@ export async function POST(req: NextRequest) {
       full: '11 a 14',
     }
 
-    const prompt = `Você é expert em quiz de vendas de alta conversão para o mercado brasileiro de infoprodutos.
+    const prompt = `Você é o melhor especialista em quiz de vendas de alta conversão do Brasil. Seu trabalho é criar quizzes que geram diagnósticos personalizados e vendem infoprodutos de forma natural e persuasiva.
 
-Crie um quiz de vendas completo para:
-- Produto: ${product.nome}
+PRODUTO:
+- Nome: ${product.nome}
 - Nicho: ${product.nicho}
 - Preço: R$ ${product.preco}
-- Promessa: ${product.promessa}
-- Dores: ${product.dores}
+- Promessa principal: ${product.promessa}
+- Dores do público: ${product.dores}
 - Benefícios: ${product.beneficios}
-- Público: ${product.publico}
-${product.url_referencia ? `- Referência: ${product.url_referencia}` : ''}
+- Público-alvo: ${product.publico}
+- Checkout: ${product.checkout_url || 'não informado'}
+${product.url_referencia ? `- Referência de quiz: ${product.url_referencia}` : ''}
 
+ESTRUTURA OBRIGATÓRIA DO QUIZ:
 Blocos a incluir: ${ativos}
-Quantidade de etapas: ${nEtapas[config.etapas] ?? 'ideal'} (máximo absoluto de 14 blocos)
+Quantidade: ${nEtapas[config.etapas] ?? 'entre 8 e 12 blocos'} (NUNCA ultrapasse 14 blocos)
 
-REGRAS DO COPY:
-- Português brasileiro coloquial, direto e emocional
-- Use *palavra* para destacar termos-chave em azul
-- Números específicos sempre que possível
-- Cada title deve criar urgência ou curiosidade
+REGRAS DE COPY OBRIGATÓRIAS:
+1. Português brasileiro coloquial, direto e emocional — fale como um amigo que entende do assunto
+2. Use *palavra* para destacar termos-chave (máx 2-3 por título)
+3. Números ESPECÍFICOS e reais — nunca genéricos. Ex: "87% das pessoas" não "muitas pessoas"
+4. Títulos com gatilhos: curiosidade, dor, urgência, identificação
+5. Cada pergunta deve fazer o lead se identificar e avançar
+6. O quiz deve parecer um DIAGNÓSTICO PERSONALIZADO, não uma pesquisa
+7. Use linguagem do nicho — termos que o público usa no dia a dia
+8. Subtítulos complementam o título com contexto ou prova social
+9. O bloco de oferta deve ter stack de valor completo com lista de benefícios
 
-Retorne APENAS JSON válido:
-{"blocks":[{"id":"b1","type":"headline","label":"CAPTURA EMOCIONAL","title":"headline com número específico","subtitle":"subtítulo que reforça a promessa","options":[]}]}
+TIPOS DE BLOCO E COMO USAR:
+- headline: Abertura impactante que faz o lead se identificar imediatamente. Deve prometer o diagnóstico.
+- question: Pergunta de múltipla escolha com 3-4 opções. Opções devem ser situações reais que o público vive.
+- insight: Revelação de dado chocante ou verdade inconveniente sobre o nicho. Sem opções.
+- bridge: Transição psicológica entre diagnóstico e solução. Cria antecipação.
+- social_proof: Depoimento específico com nome, resultado e tempo. Ex: "Maria ganhou R$3.847 em 23 dias"
+- capture: Formulário de captura. Título deve prometer entregar o diagnóstico personalizado.
+- offer: Oferta final com todos os benefícios listados no subtitle, preço, garantia e urgência.
 
-Tipos: headline, question, insight, social_proof, capture, offer, bridge`
+DIFERENCIAL OBRIGATÓRIO:
+- Perguntas devem ter progressão lógica — cada resposta aprofunda o diagnóstico
+- Use a matemática da dor: mostre quanto o lead está perdendo por não agir
+- O bloco de insight deve usar dado específico do nicho: ${product.nicho}
+- A oferta deve mencionar o preço R$ ${product.preco} e criar urgência real
+- Crie personalidade no quiz — ele deve ter uma voz única, não genérica
+
+FORMATO JSON — Retorne APENAS o JSON, sem texto antes ou depois:
+{"blocks":[
+  {"id":"b1","type":"headline","label":"CAPTURA EMOCIONAL","title":"Título com *destaque* e número específico","subtitle":"Subtítulo que reforça com contexto e prova","options":[]},
+  {"id":"b2","type":"question","label":"DIAGNÓSTICO 1","title":"Pergunta que faz o lead se identificar?","subtitle":"Contexto opcional da pergunta","options":["Opção A específica e real","Opção B específica e real","Opção C específica e real"]},
+  {"id":"b3","type":"insight","label":"REVELAÇÃO","title":"*87%* das pessoas no seu nicho cometem esse erro","subtitle":"Dado específico que choca e gera curiosidade","options":[]}
+]}`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',

@@ -239,7 +239,7 @@ export default function EditarQuizPage() {
   }
 
   const updateOptions = (blockId: string, value: string) => {
-    setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, options: value.split('\n').filter(x => x.trim()) } : b))
+    setBlocks(bs => bs.map(b => b.id === blockId ? { ...b, options: value.split('\n') } : b))
   }
 
   const deleteBlock = (blockId: string) => {
