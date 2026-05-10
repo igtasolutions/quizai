@@ -39,16 +39,16 @@ export async function POST(req: NextRequest) {
     const data = JSON.parse(rawBody)
     console.log('Kiwify webhook recebido:', JSON.stringify(data).substring(0, 200))
 
-    const event = data.type ?? data.event ?? data.status
-    const productId = data.product?.id ?? data.Product?.id ?? data.product_id ?? ''
+    const event = data.type ?? data.event ?? data.order_status ?? data.status ?? ''
+    const productId = data.Product?.id ?? data.product?.id ?? data.product_id ?? ''
     const customerEmail = data.Customer?.email ?? data.customer?.email ?? data.email ?? ''
-    const customerName = data.Customer?.full_name ?? data.customer?.name ?? ''
+    const customerName = data.Customer?.full_name ?? data.customer?.name ?? data.name ?? ''
 
     console.log('Event:', event, 'Product:', productId, 'Email:', customerEmail)
 
     // Só processa compras aprovadas
     const approvedEvents = ['order_approved', 'purchase_approved', 'approved', 'paid', 'completed']
-    const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLowerCase()))
+const isApproved = approvedEvents.some(e => event?.toLowerCase().includes(e.toLowerCase())) || data.order_status === 'paid'
 
     if (!isApproved) {
       console.log('Evento ignorado:', event)
