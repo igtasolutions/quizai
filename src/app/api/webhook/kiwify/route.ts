@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = JSON.parse(rawBody)
-    console.log('Kiwify webhook recebido:', JSON.stringify(data).substring(0, 200))
+    console.log('Kiwify webhook COMPLETO:', JSON.stringify(data))
 
     const event = data.type ?? data.event ?? data.order_status ?? data.status ?? ''
     const productId = data.Product?.id ?? data.product?.id ?? data.product_id ?? ''
