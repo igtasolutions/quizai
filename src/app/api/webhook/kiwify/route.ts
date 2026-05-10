@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
           quiz_limit: config.total,
           created_at: new Date().toISOString(),
         })
-        .catch(e => console.log('pending_activations erro:', e.message))
+       .then(({ error: e }) => { if (e) console.log('pending_activations erro:', e.message) })
 
       return NextResponse.json({ ok: true, message: 'Compra registrada — usuário ainda não cadastrado' })
     }
