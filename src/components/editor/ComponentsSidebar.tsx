@@ -384,6 +384,7 @@ const COMPONENT_CATALOG: { category: string; icon: string; color: string; items:
         factory: () => ({
           type: 'rich', label: 'ANTES / DEPOIS', title: 'A transformação real', subtitle: '', options: [],
           beforeText: 'Antes: sem método, sem resultado', afterText: 'Depois: clareza, sistema e crescimento',
+          beforeImage: '', afterImage: '',
           sections: [],
         }),
       },
