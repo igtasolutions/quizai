@@ -6,6 +6,7 @@ import Link from 'next/link'
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: '◈' },
   { href: '/dashboard/quizzes/new', label: 'Novo Quiz', icon: '⚡' },
+  { href: '/dashboard/pages', label: 'Páginas', icon: '🗂️' },
   { href: '/dashboard/leads', label: 'Leads', icon: '◉' },
   { href: '/dashboard/tutorials', label: 'Tutoriais', icon: '🎓' },
   { href: '/dashboard/settings', label: 'Configurações', icon: '⚙' },
