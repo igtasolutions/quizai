@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import ComponentsSidebar from '@/components/editor/ComponentsSidebar'
 
 interface RichSection {
   id: string
@@ -158,6 +159,7 @@ export default function EditarQuizPage() {
   const [previewStep, setPreviewStep] = useState(0)
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
+  const [showSidebar, setShowSidebar] = useState(false)
   const [sectionDrag, setSectionDrag] = useState<{ blockId: string; fromIdx: number } | null>(null)
   const [sectionDragOver, setSectionDragOver] = useState<{ blockId: string; toIdx: number } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -303,6 +305,14 @@ const addCalculatorBlock = () => {
   setPreviewStep(blocks.length)
 }
 
+  const addBlockFromSidebar = (partial: Partial<Block>) => {
+    const nb = { ...partial, id: partial.id ?? `block-${Date.now()}` } as Block
+    setBlocks(bs => [...bs, nb])
+    setEditando(nb.id)
+    setPreviewStep(blocks.length)
+    setShowSidebar(false)
+  }
+
   const uploadImage = async (blockId: string, file: File, field: string, sectionId?: string) => {
     setUploading(blockId)
     const formData = new FormData()
@@ -434,19 +444,23 @@ const addCalculatorBlock = () => {
           </div>
         )}
 
-        {/* BOTÃO ADICIONAR */}
+        {/* BOTÃO ADICIONAR COMPONENTE */}
         <div style={{ marginBottom: '12px' }}>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        <button onClick={addRichBlock} style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#6ee7b7', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
-         + Bloco rico
-         </button>
-  <button onClick={addMeterBlock} style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', color: '#fda4af', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
-    + Medidor
-  </button>
-  <button onClick={addCalculatorBlock} style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', color: '#c4b5fd', fontSize: '11px', fontWeight: '600', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer' }}>
-    + Calculadora
-  </button>
-</div>
+          <button
+            onClick={() => setShowSidebar(true)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              background: 'rgba(37,99,255,0.08)', border: '1px dashed rgba(37,99,255,0.35)',
+              color: '#60a5fa', fontSize: '13px', fontWeight: '600', padding: '11px',
+              borderRadius: '10px', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37,99,255,0.14)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(37,99,255,0.5)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(37,99,255,0.08)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(37,99,255,0.35)' }}
+          >
+            <span style={{ fontSize: '16px', fontWeight: '300' }}>+</span>
+            Adicionar componente
+          </button>
         </div>
 
         <div style={{ fontSize: '10px', color: '#4e6a90', marginBottom: '10px' }}>
@@ -918,6 +932,13 @@ const addCalculatorBlock = () => {
           </div>
         </div>
       </div>
+
+      {/* SIDEBAR DE COMPONENTES */}
+      <ComponentsSidebar
+        isOpen={showSidebar}
+        onClose={() => setShowSidebar(false)}
+        onAdd={addBlockFromSidebar}
+      />
     </div>
   )
 }
