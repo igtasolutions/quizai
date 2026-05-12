@@ -160,6 +160,8 @@ export default function EditarQuizPage() {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [canvasMode, setCanvasMode] = useState(false)
+  const canvasRef = useRef<HTMLDivElement>(null)
   const [sectionDrag, setSectionDrag] = useState<{ blockId: string; fromIdx: number } | null>(null)
   const [sectionDragOver, setSectionDragOver] = useState<{ blockId: string; toIdx: number } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -367,7 +369,196 @@ const addCalculatorBlock = () => {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'DM Sans, sans-serif' }}>
 
-      {/* EDITOR */}
+      {canvasMode ? (
+        /* ── MODO CANVAS ── */
+        <>
+          {/* Sidebar esquerda — lista de blocos */}
+          <div style={{ width: '220px', flexShrink: 0, background: '#0a1120', borderRight: '1px solid #162035', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100vh', position: 'sticky', top: 0 }}>
+            <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid #0f1a2e' }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff', marginBottom: '2px' }}>{quiz.title}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: isActive ? '#22c55e' : '#4e6a90', boxShadow: isActive ? '0 0 6px #22c55e' : 'none' }}/>
+                <span style={{ fontSize: '10px', color: isActive ? '#22c55e' : '#4e6a90' }}>{isActive ? 'Publicado' : 'Rascunho'}</span>
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div style={{ padding: '8px 10px', borderBottom: '1px solid #0f1a2e', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              {msg && <span style={{ fontSize: '10px', color: msg.includes('Erro') ? '#f87171' : '#22c55e', width: '100%' }}>{msg}</span>}
+              <button onClick={salvar} disabled={salvando} style={{ flex: 1, background: '#0f1a2e', border: '1px solid #162035', color: '#4e6a90', fontSize: '10px', fontWeight: '600', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer' }}>{salvando ? '...' : '💾 Salvar'}</button>
+              {isActive
+                ? <button onClick={despublicar} style={{ flex: 1, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', color: '#fca5a5', fontSize: '10px', fontWeight: '600', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer' }}>Tirar do ar</button>
+                : <button onClick={publicar} disabled={publicando} style={{ flex: 1, background: 'linear-gradient(135deg, #2563ff, #1d4ed8)', color: '#fff', fontSize: '10px', fontWeight: '700', padding: '5px 8px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>{publicando ? '...' : '⚡ Publicar'}</button>}
+              <button onClick={() => setCanvasMode(false)} style={{ width: '100%', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa', fontSize: '10px', fontWeight: '600', padding: '5px', borderRadius: '6px', cursor: 'pointer' }}>☰ Modo Lista</button>
+            </div>
+
+            {/* Lista de blocos */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+              <div style={{ fontSize: '10px', color: '#4e6a90', marginBottom: '6px', padding: '0 4px' }}>{blocks.length} blocos · clique para selecionar</div>
+              {blocks.map((block, idx) => {
+                const colors = typeColors[block.type] ?? { bg: 'rgba(100,100,100,0.1)', text: '#888', border: 'rgba(100,100,100,0.2)' }
+                return (
+                  <div key={block.id} draggable onDragStart={() => onDragStart(idx)} onDragOver={e => onDragOver(e, idx)} onDrop={e => onDrop(e, idx)} onDragEnd={onDragEnd}
+                    onClick={() => { setEditando(block.id); setPreviewStep(idx) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px', borderRadius: '7px', border: `1px solid ${editando === block.id ? 'rgba(37,99,255,0.5)' : '#0f1a2e'}`, background: editando === block.id ? 'rgba(37,99,255,0.08)' : 'rgba(0,0,0,0.2)', marginBottom: '4px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    <span style={{ color: '#2e4560', fontSize: '12px', cursor: 'grab' }}>⠿</span>
+                    <span style={{ fontSize: '7px', fontWeight: '700', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase', background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`, flexShrink: 0 }}>{block.type}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '11px', color: '#eef2ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{block.title || block.label}</div>
+                    </div>
+                    <span style={{ fontSize: '9px', color: '#2e4560', flexShrink: 0 }}>{idx + 1}</span>
+                  </div>
+                )
+              })}
+              <button onClick={() => setShowSidebar(true)} style={{ width: '100%', marginTop: '6px', background: 'rgba(37,99,255,0.07)', border: '1px dashed rgba(37,99,255,0.3)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>+ Adicionar bloco</button>
+            </div>
+
+            <div style={{ padding: '8px 10px', borderTop: '1px solid #0f1a2e' }}>
+              <button onClick={() => router.push('/dashboard')} style={{ background: 'none', border: 'none', color: '#4e6a90', fontSize: '10px', cursor: 'pointer', padding: 0 }}>← Dashboard</button>
+            </div>
+          </div>
+
+          {/* Canvas central */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100vh' }}>
+            {/* Topbar canvas */}
+            <div style={{ height: '44px', background: '#0a1120', borderBottom: '1px solid #162035', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '10px', flexShrink: 0 }}>
+              <div style={{ flex: 1, fontSize: '12px', color: '#4e6a90' }}>
+                {editando ? `Editando: bloco ${blocks.findIndex(b => b.id === editando) + 1} de ${blocks.length}` : 'Clique em um bloco para editar'}
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => setPreviewStep(Math.max(0, previewStep - 1))} disabled={previewStep === 0} style={{ background: '#0f1a2e', border: '1px solid #162035', color: '#4e6a90', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}>←</button>
+                <span style={{ fontSize: '10px', color: '#4e6a90', display: 'flex', alignItems: 'center' }}>{previewStep + 1}/{blocks.length}</span>
+                <button onClick={() => setPreviewStep(Math.min(blocks.length - 1, previewStep + 1))} disabled={previewStep >= blocks.length - 1} style={{ background: '#0f1a2e', border: '1px solid #162035', color: '#4e6a90', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}>→</button>
+              </div>
+            </div>
+
+            {/* Canvas scroll */}
+            <div ref={canvasRef} style={{ flex: 1, overflowY: 'auto', background: '#030508', padding: '24px', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: '560px' }}>
+                {blocks.length === 0 && (
+                  <div onClick={() => setShowSidebar(true)} style={{ border: '2px dashed #162035', borderRadius: '16px', padding: '80px 20px', textAlign: 'center', cursor: 'pointer' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.4 }}>+</div>
+                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#4e6a90', fontFamily: 'Syne, sans-serif' }}>Clique para adicionar o primeiro bloco</div>
+                  </div>
+                )}
+                <div style={{ background: currentTheme.bg, borderRadius: '16px', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,0.6)', border: `1px solid ${currentTheme.border}` }}>
+                  {/* Barra de progresso */}
+                  {blocks.length > 0 && (
+                    <div style={{ background: currentTheme.surface, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `1px solid ${currentTheme.border}` }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', fontFamily: 'Syne, sans-serif', color: currentTheme.text }}>Quiz<span style={{ color: currentTheme.accent2 }}>AI</span></span>
+                      <div style={{ flex: 1, height: '3px', background: currentTheme.border, borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${((previewStep + 1) / Math.max(blocks.length, 1)) * 100}%`, background: `linear-gradient(90deg, ${currentTheme.accent}, ${currentTheme.accent2})`, borderRadius: '2px', transition: 'width 0.3s' }}/>
+                      </div>
+                      <span style={{ fontSize: '10px', color: currentTheme.muted }}>{previewStep + 1}/{blocks.length}</span>
+                    </div>
+                  )}
+                  {/* Blocos no canvas */}
+                  {blocks.map((block, idx) => {
+                    const isSelected = editando === block.id
+                    return (
+                      <div key={block.id} onClick={() => { setEditando(block.id); setPreviewStep(idx) }} className="canvas-block"
+                        style={{ position: 'relative', cursor: 'pointer', outline: isSelected ? `2px solid ${currentTheme.accent}` : '2px solid transparent', outlineOffset: '2px', borderRadius: '4px', transition: 'all 0.15s', borderBottom: idx < blocks.length - 1 ? `1px solid ${currentTheme.border}` : 'none' }}>
+                        {isSelected && (
+                          <div style={{ position: 'absolute', top: '6px', right: '6px', zIndex: 10, display: 'flex', gap: '4px' }}>
+                            <button onClick={e => { e.stopPropagation(); if (idx > 0) { const nb = [...blocks]; [nb[idx], nb[idx-1]] = [nb[idx-1], nb[idx]]; setBlocks(nb); setPreviewStep(idx-1) } }} disabled={idx === 0} style={{ background: 'rgba(10,17,32,0.95)', border: '1px solid #162035', color: idx === 0 ? '#2e4560' : '#4e6a90', borderRadius: '5px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>↑</button>
+                            <button onClick={e => { e.stopPropagation(); if (idx < blocks.length - 1) { const nb = [...blocks]; [nb[idx], nb[idx+1]] = [nb[idx+1], nb[idx]]; setBlocks(nb); setPreviewStep(idx+1) } }} disabled={idx === blocks.length - 1} style={{ background: 'rgba(10,17,32,0.95)', border: '1px solid #162035', color: idx === blocks.length - 1 ? '#2e4560' : '#4e6a90', borderRadius: '5px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>↓</button>
+                            <button onClick={e => { e.stopPropagation(); deleteBlock(block.id) }} style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', borderRadius: '5px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                          </div>
+                        )}
+                        {/* Preview do bloco no canvas */}
+                        <div style={{ padding: '20px 24px', background: currentTheme.bg }}>
+                          <div style={{ fontSize: '8px', letterSpacing: '1px', color: currentTheme.accent2, textTransform: 'uppercase', marginBottom: '8px' }}>{block.label}</div>
+                          {block.imageUrl && <div style={{ marginBottom: '10px', borderRadius: '8px', overflow: 'hidden' }}><img src={block.imageUrl} alt="" style={{ width: '100%', maxHeight: '160px', objectFit: 'cover' }}/></div>}
+                          {block.type === 'video' && (block.videoUrl || block.videoEmbed) && (
+                            <div style={{ background: currentTheme.surface, border: `1px solid ${currentTheme.border}`, borderRadius: '10px', aspectRatio: '16/9', overflow: 'hidden', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {block.videoUrl?.includes('youtube') ? (
+                                <iframe src={`https://www.youtube.com/embed/${block.videoUrl?.match(/[?&]v=([^&]+)/)?.[1]}`} style={{ width: '100%', height: '100%', border: 'none' }} allowFullScreen/>
+                              ) : <div style={{ textAlign: 'center', color: currentTheme.muted }}><div style={{ fontSize: '28px' }}>▶</div><div style={{ fontSize: '11px', marginTop: '6px' }}>Vídeo configurado</div></div>}
+                            </div>
+                          )}
+                          {block.title && (
+                            <div style={{ fontSize: 'clamp(16px, 3vw, 24px)', fontWeight: block.titleBold ? '800' : '300', fontFamily: block.fontFamily || 'Syne, sans-serif', color: block.titleColor || currentTheme.text, marginBottom: '8px', lineHeight: 1.2, letterSpacing: '-0.5px' }}>
+                              {renderTitle(block.title)}
+                            </div>
+                          )}
+                          {block.subtitle && <div style={{ fontSize: '14px', color: currentTheme.muted, marginBottom: '12px', lineHeight: 1.6 }}>{String(block.subtitle ?? '').substring(0, 120)}{(block.subtitle?.length ?? 0) > 120 ? '...' : ''}</div>}
+                          {block.options && block.options.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                              {block.options.slice(0, 3).map((opt, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: `1px solid ${currentTheme.border}`, borderRadius: '8px', background: currentTheme.surface }}>
+                                  <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: `1.5px solid ${currentTheme.muted}`, flexShrink: 0 }}/>
+                                  <span style={{ fontSize: '13px', color: currentTheme.text }}>{String(opt ?? '').substring(0, 40)}</span>
+                                </div>
+                              ))}
+                              {block.options.length > 3 && <div style={{ fontSize: '11px', color: currentTheme.muted, textAlign: 'center' }}>+{block.options.length - 3} opções</div>}
+                            </div>
+                          )}
+                          {block.sections && block.sections.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                              {block.sections.slice(0, 2).map((s: RichSection) => (
+                                <div key={s.id} style={{ background: currentTheme.surface, border: `1px solid ${currentTheme.border}`, borderRadius: '7px', padding: '8px 10px', display: 'flex', gap: '8px' }}>
+                                  {s.badge && <span style={{ fontSize: '14px' }}>{s.badge}</span>}
+                                  <div>{s.title && <div style={{ fontSize: '12px', fontWeight: '600', color: currentTheme.text }}>{s.title}</div>}{s.text && <div style={{ fontSize: '11px', color: currentTheme.muted, marginTop: '2px' }}>{String(s.text ?? '').substring(0, 60)}</div>}</div>
+                                </div>
+                              ))}
+                              {block.sections.length > 2 && <div style={{ fontSize: '11px', color: currentTheme.muted, textAlign: 'center' }}>+{block.sections.length - 2} seções</div>}
+                            </div>
+                          )}
+                          <div style={{ width: '100%', background: `linear-gradient(135deg, ${currentTheme.accent}, ${currentTheme.accent}cc)`, color: '#fff', fontSize: '13px', fontWeight: '700', padding: '10px', borderRadius: '8px', textAlign: 'center', fontFamily: 'Syne, sans-serif' }}>
+                            {block.type === 'capture' ? 'Ver meu diagnóstico →' : block.type === 'offer' ? 'Quero agora →' : 'Continuar →'}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {blocks.length > 0 && (
+                  <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                    <button onClick={() => setShowSidebar(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(37,99,255,0.07)', border: '1px dashed rgba(37,99,255,0.3)', color: '#60a5fa', fontSize: '13px', fontWeight: '600', padding: '10px 24px', borderRadius: '10px', cursor: 'pointer' }}>+ Adicionar componente</button>
+                  </div>
+                )}
+                <div style={{ height: '40px' }}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Painel direito — edição do bloco selecionado no canvas */}
+          {editando && (
+            <div style={{ width: '300px', flexShrink: 0, background: '#0a1120', borderLeft: '1px solid #162035', height: '100vh', overflowY: 'auto', position: 'sticky', top: 0 }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid #0f1a2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', fontFamily: 'Syne, sans-serif', color: '#eef2ff', letterSpacing: '-0.3px' }}>
+                  ✏️ {blocks.find(b => b.id === editando)?.label || 'Bloco'}
+                </div>
+                <button onClick={() => setEditando(null)} style={{ background: 'none', border: 'none', color: '#4e6a90', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+              </div>
+              {/* Reutiliza o painel de edição inline existente via scroll para o bloco */}
+              <div style={{ padding: '12px', fontSize: '11px', color: '#4e6a90' }}>
+                <div style={{ background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px' }}>
+                  💡 Use o painel da lista para edição completa. No modo canvas, você pode mover, reordenar e visualizar os blocos.
+                </div>
+                {/* Preview compacto das propriedades */}
+                {(() => {
+                  const b = blocks.find(x => x.id === editando)
+                  if (!b) return null
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div><div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase', marginBottom: '3px' }}>Título</div><div style={{ fontSize: '12px', color: '#eef2ff', lineHeight: 1.4 }}>{b.title || '—'}</div></div>
+                      {b.subtitle && <div><div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase', marginBottom: '3px' }}>Subtítulo</div><div style={{ fontSize: '12px', color: '#eef2ff', lineHeight: 1.4 }}>{String(b.subtitle ?? '').substring(0, 80)}</div></div>}
+                      {b.options?.length > 0 && <div><div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase', marginBottom: '3px' }}>Opções ({b.options.length})</div>{b.options.map((o, i) => <div key={i} style={{ fontSize: '11px', color: '#8ca8cc', padding: '2px 0' }}>{i+1}. {String(o ?? '').substring(0, 40)}</div>)}</div>}
+                      {b.videoUrl && <div><div style={{ fontSize: '9px', color: '#4e6a90', textTransform: 'uppercase', marginBottom: '3px' }}>Vídeo</div><div style={{ fontSize: '11px', color: '#60a5fa', wordBreak: 'break-all' }}>{b.videoUrl.substring(0, 50)}</div></div>}
+                      <button onClick={() => setCanvasMode(false)} style={{ marginTop: '8px', width: '100%', background: 'rgba(37,99,255,0.1)', border: '1px solid rgba(37,99,255,0.2)', color: '#60a5fa', fontSize: '11px', fontWeight: '600', padding: '8px', borderRadius: '7px', cursor: 'pointer' }}>Editar completo (modo lista) →</button>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          <style>{`.canvas-block:hover { outline: 2px solid rgba(37,99,255,0.4) !important; outline-offset: 2px; }`}</style>
+        </>
+      ) : (
+        /* ── MODO LISTA (original) ── */
+      <>
       <div style={{ flex: 1, padding: '24px 20px', maxWidth: '580px', overflowY: 'auto' }}>
 
         {/* HEADER */}
@@ -382,6 +573,9 @@ const addCalculatorBlock = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {msg && <span style={{ fontSize: '11px', color: msg.includes('Erro') ? '#f87171' : '#22c55e' }}>{msg}</span>}
             <button onClick={() => setShowThemes(!showThemes)} style={{ background: showThemes ? 'rgba(37,99,255,0.15)' : '#0a1120', border: `1px solid ${showThemes ? 'rgba(37,99,255,0.4)' : '#162035'}`, color: showThemes ? '#60a5fa' : '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>🎨 Tema</button>
+            <button onClick={() => setCanvasMode(!canvasMode)} style={{ background: canvasMode ? 'rgba(167,139,250,0.15)' : '#0a1120', border: `1px solid ${canvasMode ? 'rgba(167,139,250,0.4)' : '#162035'}`, color: canvasMode ? '#a78bfa' : '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
+              {canvasMode ? '☰ Lista' : '⊞ Canvas'}
+            </button>
             <button onClick={salvar} disabled={salvando} style={{ background: '#0a1120', border: '1px solid #162035', color: '#4e6a90', fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', cursor: 'pointer' }}>
               {salvando ? 'Salvando...' : '💾 Salvar'}
             </button>
@@ -933,12 +1127,23 @@ const addCalculatorBlock = () => {
         </div>
       </div>
 
-      {/* SIDEBAR DE COMPONENTES */}
+      {/* SIDEBAR DE COMPONENTES — modo lista */}
       <ComponentsSidebar
         isOpen={showSidebar}
         onClose={() => setShowSidebar(false)}
         onAdd={addBlockFromSidebar}
       />
+      </> /* fim modo lista wrapper */
+      )} {/* fim ternário canvasMode */}
+
+      {/* SIDEBAR — modo canvas */}
+      {canvasMode && (
+        <ComponentsSidebar
+          isOpen={showSidebar}
+          onClose={() => setShowSidebar(false)}
+          onAdd={addBlockFromSidebar}
+        />
+      )}
     </div>
   )
 }

@@ -10,7 +10,9 @@ interface FaqItem { q: string; a: string }
 interface Block {
   id: string; type: string; label: string; title: string; subtitle: string; options: string[]
   imageUrl?: string; imageAlt?: string; imageOptions?: ImageOption[]
-  videoUrl?: string; videoProvider?: string
+  videoUrl?: string; videoProvider?: string; videoEmbed?: string
+  videoLockSeconds?: number; videoLockAction?: string
+  videoDuration?: number; videoPitchSecond?: number
   audioUrl?: string
   testimonialName?: string; testimonialRole?: string; testimonialText?: string; testimonialStars?: number
   buttonText?: string; buttonUrl?: string; buttonBg?: string; buttonColor?: string; buttonFont?: string; buttonFontSize?: string; buttonSize?: string
@@ -227,13 +229,25 @@ function BlockRenderer({ block, theme, selected, onClick, onDelete, onMoveUp, on
         )
 
       case 'video':
+        const ytId = block.videoUrl?.match(/[?&]v=([^&]+)/)?.[1] || (block.videoUrl?.includes('youtu.be') ? block.videoUrl.split('/').pop()?.split('?')[0] : null)
         return (
           <div style={{ padding: '16px 24px' }}>
             {block.title && <h3 style={{ fontSize: '16px', fontWeight: '600', color: theme.text, margin: '0 0 10px', fontFamily: 'Syne, sans-serif' }}>{block.title}</h3>}
-            <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: '12px', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {block.videoUrl ? <div style={{ textAlign: 'center', color: theme.muted }}><div style={{ fontSize: '28px', marginBottom: '6px' }}>🎥</div><div style={{ fontSize: '11px' }}>{block.videoUrl.substring(0, 36)}...</div></div>
-                : <div style={{ textAlign: 'center', color: theme.muted }}><div style={{ fontSize: '36px', opacity: 0.4 }}>▶</div><div style={{ fontSize: '11px', marginTop: '6px' }}>Cole a URL no painel</div></div>}
+            {block.subtitle && <p style={{ fontSize: '13px', color: theme.muted, margin: '0 0 10px' }}>{block.subtitle}</p>}
+            <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: '12px', aspectRatio: '16/9', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {ytId ? (
+                <iframe src={`https://www.youtube.com/embed/${ytId}`} style={{ width: '100%', height: '100%', border: 'none' }} allowFullScreen/>
+              ) : block.videoProvider === 'vturb' && block.videoEmbed ? (
+                <div style={{ textAlign: 'center', color: theme.muted }}><div style={{ fontSize: '28px', marginBottom: '6px' }}>📹</div><div style={{ fontSize: '11px' }}>Vturb embed configurado</div></div>
+              ) : (
+                <div style={{ textAlign: 'center', color: theme.muted }}><div style={{ fontSize: '36px', opacity: 0.4 }}>▶</div><div style={{ fontSize: '11px', marginTop: '6px' }}>Cole a URL no painel</div></div>
+              )}
             </div>
+            {(block.videoLockSeconds ?? 0) > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '10px', color: '#60a5fa', background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '6px', padding: '6px 10px' }}>
+                🔒 Botão bloqueado até {Math.floor((block.videoLockSeconds ?? 0) / 60)}min {(block.videoLockSeconds ?? 0) % 60}s
+              </div>
+            )}
           </div>
         )
 
@@ -431,11 +445,81 @@ function BlockEditor({ block, onChange }: { block: Block; onChange: (f: string, 
         <div><label style={lbl}>Estrelas</label><div style={{ display: 'flex', gap: '4px' }}>{[1,2,3,4,5].map(n => <button key={n} onClick={() => onChange('testimonialStars', n)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: n <= (block.testimonialStars || 5) ? '#fbbf24' : '#2e4560' }}>★</button>)}</div></div>
       </>)}
 
-      {/* VÍDEO */}
-      {block.type === 'video' && (<>
-        <div><label style={lbl}>URL do vídeo</label><input value={block.videoUrl || ''} onChange={e => onChange('videoUrl', e.target.value)} placeholder="https://youtube.com/watch?v=..." style={inp()}/></div>
-        <div><label style={lbl}>Plataforma</label><select value={block.videoProvider || 'youtube'} onChange={e => onChange('videoProvider', e.target.value)} style={inp()}><option value="youtube">YouTube</option><option value="vimeo">Vimeo</option><option value="vturb">VTurb</option></select></div>
-      </>)}
+      {/* VÍDEO COMPLETO */}
+      {block.type === 'video' && (
+        <>
+          <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #0f1a2e', borderRadius: '10px', padding: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>🎥 Vídeo</div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={lbl}>Plataforma</label>
+              <select value={block.videoProvider || 'youtube'} onChange={e => onChange('videoProvider', e.target.value)} style={inp()}>
+                <option value="youtube">YouTube</option>
+                <option value="vturb">Vturb (VSL)</option>
+                <option value="vimeo">Vimeo</option>
+                <option value="panda">Panda Video</option>
+                <option value="kwik">Kwik</option>
+                <option value="iframe">Outro (iframe)</option>
+              </select>
+            </div>
+            {block.videoProvider === 'vturb' ? (
+              <div>
+                <label style={lbl}>Código HTML do Vturb</label>
+                <textarea value={block.videoEmbed || ''} onChange={e => onChange('videoEmbed', e.target.value)} rows={4} placeholder={'<div id="vid_..."></div>\n<script src="..."></script>'} style={{ ...ta, fontFamily: 'monospace', fontSize: '10px' }}/>
+              </div>
+            ) : (
+              <div>
+                <label style={lbl}>URL do vídeo</label>
+                <input value={block.videoUrl || ''} onChange={e => onChange('videoUrl', e.target.value)} placeholder="https://youtube.com/watch?v=..." style={inp()}/>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #0f1a2e', borderRadius: '10px', padding: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>⏱ Bloqueio de conteúdo</div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={lbl}>Esconder "Continuar" até o segundo</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="number" min={0} value={block.videoLockSeconds ?? 0} onChange={e => onChange('videoLockSeconds', Number(e.target.value))} placeholder="Ex: 825 = 13min 45s" style={{ ...inp(), flex: 1 }}/>
+                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0, whiteSpace: 'nowrap' as const }}>
+                  {(block.videoLockSeconds ?? 0) > 0 ? `${Math.floor((block.videoLockSeconds ?? 0) / 60)}min ${(block.videoLockSeconds ?? 0) % 60}s` : 'não bloquear'}
+                </div>
+              </div>
+            </div>
+            {(block.videoLockSeconds ?? 0) > 0 && (
+              <div style={{ marginBottom: '10px' }}>
+                <label style={lbl}>Quando liberar</label>
+                <select value={block.videoLockAction || 'show_button'} onChange={e => onChange('videoLockAction', e.target.value)} style={inp()}>
+                  <option value="show_button">Mostrar botão Continuar</option>
+                  <option value="auto_next">Avançar automaticamente</option>
+                </select>
+              </div>
+            )}
+            {(block.videoProvider === 'youtube' || !block.videoProvider) && (
+              <div style={{ background: 'rgba(37,99,255,0.06)', border: '1px solid rgba(37,99,255,0.15)', borderRadius: '7px', padding: '8px 10px', fontSize: '10px', color: '#60a5fa' }}>
+                🛡️ Proteção YouTube ativa
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid #0f1a2e', borderRadius: '10px', padding: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: '#eef2ff', marginBottom: '10px' }}>📊 Analytics do vídeo</div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={lbl}>Duração total (segundos)</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="number" min={0} value={block.videoDuration ?? 0} onChange={e => onChange('videoDuration', Number(e.target.value))} placeholder="Ex: 600 = 10min" style={{ ...inp(), flex: 1 }}/>
+                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0 }}>{(block.videoDuration ?? 0) > 0 ? `${Math.floor((block.videoDuration ?? 0) / 60)}min` : ''}</div>
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>Segundo do pitch</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="number" min={0} value={block.videoPitchSecond ?? 0} onChange={e => onChange('videoPitchSecond', Number(e.target.value))} placeholder="Ex: 540 = 9min" style={{ ...inp(), flex: 1 }}/>
+                <div style={{ fontSize: '10px', color: '#4e6a90', flexShrink: 0 }}>{(block.videoPitchSecond ?? 0) > 0 ? `${Math.floor((block.videoPitchSecond ?? 0) / 60)}min` : ''}</div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ÁUDIO */}
       {'audioUrl' in block && <Upload label="Arquivo de áudio (MP3 ou URL)" value={block.audioUrl || ''} onChange={url => onChange('audioUrl', url)}/>}
